@@ -106,7 +106,7 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
       >
         <polyline
           points={pathString}
-          stroke={theme.palette.common.white}
+          stroke={theme.customVars.customPalette.diagramBg}
           strokeWidth={connectorWidthPx * 1.4}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -130,14 +130,14 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
               <Circle
                 tile={anchor}
                 radius={18}
-                fill={theme.palette.common.white}
+                fill={theme.customVars.customPalette.diagramBg}
                 fillOpacity={0.7}
               />
               <Circle
                 tile={anchor}
                 radius={12}
-                stroke={theme.palette.common.black}
-                fill={theme.palette.common.white}
+                stroke={theme.palette.text.primary}
+                fill={theme.customVars.customPalette.diagramBg}
                 strokeWidth={6}
               />
             </g>
@@ -148,8 +148,8 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
           <g transform={`translate(${directionIcon.x}, ${directionIcon.y})`}>
             <g transform={`rotate(${directionIcon.rotation})`}>
               <polygon
-                fill="black"
-                stroke={theme.palette.common.white}
+                fill={theme.palette.text.primary}
+                stroke={theme.customVars.customPalette.diagramBg}
                 strokeWidth={4}
                 points="17.58,17.01 0,-17.01 -17.58,17.01"
               />

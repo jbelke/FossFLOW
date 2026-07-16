@@ -20,16 +20,19 @@ export const IconButton = ({
   tooltipPosition = 'bottom'
 }: Props) => {
   const theme = useTheme();
+  // Paired with the button background below: an active button is filled with
+  // primary.main, so its icon must be primary.contrastText. Fixed greys break
+  // in dark mode, where primary flips to a near-white blue.
   const iconColor = useMemo(() => {
     if (isActive) {
-      return 'grey.200';
+      return 'primary.contrastText';
     }
 
     if (disabled) {
-      return 'grey.800';
+      return 'text.disabled';
     }
 
-    return 'grey.500';
+    return 'text.secondary';
   }, [disabled, isActive]);
 
   return (
@@ -50,7 +53,10 @@ export const IconButton = ({
           width: theme.customVars.toolMenu.height,
           maxWidth: '100%',
           minWidth: 'auto',
-          bgcolor: isActive ? 'primary.light' : undefined,
+          bgcolor: isActive ? 'primary.main' : undefined,
+          '&:hover': {
+            bgcolor: isActive ? 'primary.dark' : undefined
+          },
           p: 0,
           m: 0
         }}

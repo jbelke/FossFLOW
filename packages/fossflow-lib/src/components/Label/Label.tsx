@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Box, SxProps } from '@mui/material';
+import { Box, SxProps, useTheme } from '@mui/material';
 
 const CONNECTOR_DOT_SIZE = 3;
 
@@ -21,6 +21,7 @@ export const Label = ({
   sx
 }: Props) => {
   const contentRef = useRef<HTMLDivElement>();
+  const theme = useTheme();
 
   return (
     <Box
@@ -46,7 +47,7 @@ export const Label = ({
             x2={CONNECTOR_DOT_SIZE / 2}
             y2={labelHeight}
             strokeDasharray={`0, ${CONNECTOR_DOT_SIZE * 2}`}
-            stroke="black"
+            stroke={theme.palette.text.secondary}
             strokeWidth={CONNECTOR_DOT_SIZE}
             strokeLinecap="round"
           />
@@ -58,9 +59,10 @@ export const Label = ({
         sx={{
           position: 'absolute',
           display: 'inline-block',
-          bgcolor: 'common.white',
+          bgcolor: 'background.paper',
+          color: 'text.primary',
           border: '1px solid',
-          borderColor: 'grey.400',
+          borderColor: 'divider',
           borderRadius: 2,
           py: 1,
           px: 1.5,

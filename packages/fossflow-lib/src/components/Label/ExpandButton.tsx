@@ -22,15 +22,15 @@ export const ExpandButton = ({ isExpanded, onClick, sx }: Props) => {
         fontSize: '0.7em',
         bottom: 5,
         right: 5,
-        color: 'common.white',
+        color: 'primary.contrastText',
         ...sx
       }}
       onClick={onClick}
     >
       {isExpanded ? (
-        <ReadLessIcon sx={{ color: 'common.white' }} />
+        <ReadLessIcon sx={{ color: 'primary.contrastText' }} />
       ) : (
-        <ReadMoreIcon sx={{ color: 'common.white' }} />
+        <ReadMoreIcon sx={{ color: 'primary.contrastText' }} />
       )}
     </MuiButton>
   );

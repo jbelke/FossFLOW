@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Box } from '@mui/material';
 import { useResizeObserver } from 'src/hooks/useResizeObserver';
-import { Gradient } from 'src/components/Gradient/Gradient';
 import { ExpandButton } from './ExpandButton';
 import { Label, Props as LabelProps } from './Label';
 
@@ -57,18 +56,6 @@ export const ExpandableLabel = ({
         }}
       >
         {children}
-
-        {isContentTruncated && (
-          <Gradient
-            sx={{
-              position: 'absolute',
-              width: '100%',
-              height: 50,
-              bottom: 0,
-              left: 0
-            }}
-          />
-        )}
       </Box>
 
       {((!isExpanded && isContentTruncated) || isExpanded) && (

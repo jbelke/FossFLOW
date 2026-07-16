@@ -19,7 +19,7 @@ export const ColorSwatch = ({ hex, onClick, isActive }: Props) => {
         <Box
           sx={{
             border: '1px solid',
-            borderColor: 'grey.600',
+            borderColor: 'divider',
             bgcolor: hex,
             width: 28,
             height: 28,
