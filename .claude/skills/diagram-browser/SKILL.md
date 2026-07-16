@@ -46,7 +46,32 @@ All three are deleted (or reduced to the new surface) by `ff-b86.7`:
 `DiagramManager.css` and `App.css` both define `.diagram-item` differently and both load
 globally — a live collision. Zero duplicate definitions is an acceptance criterion.
 
-## The thumbnail gate — hard blocker
+## Two hard gates — check both before building
+
+### 1. Persistence (`ff-b86.8`, P0) — this one is a data-loss bug, not a styling bug
+
+The three half-dashboards sit on **two persistence paths that do not share state**:
+
+- `App.tsx` writes `localStorage` directly with **hyphenated** keys — `fossflow-diagrams`,
+  `fossflow-last-opened`, `fossflow-last-opened-data`. This backs the toolbar Save and the
+  5s autosave.
+- `services/storageService.ts` (`storageManager` singleton) backs the `DiagramManager`
+  modal — `ServerStorage` if `GET /api/storage/status` reports enabled, else
+  `SessionStorage` with **underscored** keys `fossflow_diagram_<id>` / `fossflow_diagrams`.
+
+Merging the UI without merging the data yields a browser that lists a diagram which Save
+silently writes somewhere else. **One persistence contract must back the Browser**, with the
+key schemes reconciled or explicitly bridged by a migration for existing users' saved
+diagrams.
+
+Preserve two behaviors in any unified save path:
+- **Icons are stripped before persisting** (`icons: []`; autosave keeps only
+  `collection === 'imported'`) and re-merged with isopack icons on load. Drop this and you
+  blow the ~5MB quota.
+- `storageService.ts` hardcodes `http://localhost:3001` **only** when hostname is
+  `localhost` *and* port is `3000`. Any other port silently drops to session storage.
+
+### 2. Thumbnails (`ff-b86.1`) — blocks the card
 
 **Do not start the card component (`ff-b86.3`) until spike `ff-b86.1` records a decision.**
 This is the one real unknown and a wrong answer either blows the ~5MB storage quota or
@@ -175,6 +200,8 @@ session-only storage. `compose.local.yml` defaults to 4000.
 ## Acceptance (from the feature spec)
 
 - The three superseded surfaces are deleted or reduced to the new one.
+- One persistence contract backs the Browser; no diagram is visible that Save cannot write
+  to. Icon-stripping preserved.
 - Zero duplicate `.diagram-item` definitions.
 - Server and local storage both work, visibly distinguished by badge.
 - Search, sort, and grid/list toggle work; the view choice persists.
