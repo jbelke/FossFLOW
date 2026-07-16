@@ -11,6 +11,9 @@ import { ViewItem } from 'src/types';
 import { useModelItem } from 'src/hooks/useModelItem';
 import { ExpandableLabel } from 'src/components/Label/ExpandableLabel';
 import { MarkdownEditor } from 'src/components/MarkdownEditor/MarkdownEditor';
+import { useUiStateStore } from 'src/stores/uiStateStore';
+import { useNodeActions } from 'src/hooks/useNodeActions';
+import { NodeRenameInput } from './NodeRenameInput';
 
 interface Props {
   node: ViewItem;
@@ -20,6 +23,13 @@ interface Props {
 export const Node = ({ node, order }: Props) => {
   const modelItem = useModelItem(node.id);
   const { iconComponent } = useIcon(modelItem?.icon);
+  const { renameNode } = useNodeActions();
+  const uiStateActions = useUiStateStore((state) => {
+    return state.actions;
+  });
+  const isRenaming = useUiStateStore((state) => {
+    return state.renamingItemId === node.id;
+  });
 
   const position = useMemo(() => {
     return getTilePosition({
@@ -58,7 +68,7 @@ export const Node = ({ node, order }: Props) => {
           top: position.y
         }}
       >
-        {(modelItem?.name || description) && (
+        {(modelItem?.name || description || isRenaming) && (
           <Box
             sx={{ position: 'absolute' }}
             style={{ bottom: PROJECTED_TILE_SIZE.height / 2 }}
@@ -69,7 +79,19 @@ export const Node = ({ node, order }: Props) => {
               labelHeight={node.labelHeight ?? DEFAULT_LABEL_HEIGHT}
             >
               <Stack spacing={1}>
-                {modelItem.name && (
+                {isRenaming && (
+                  <NodeRenameInput
+                    initialValue={modelItem.name ?? ''}
+                    onCommit={(name) => {
+                      renameNode(node.id, name);
+                      uiStateActions.setRenamingItemId(null);
+                    }}
+                    onCancel={() => {
+                      uiStateActions.setRenamingItemId(null);
+                    }}
+                  />
+                )}
+                {!isRenaming && modelItem.name && (
                   <Typography fontWeight={600}>{modelItem.name}</Typography>
                 )}
                 {modelItem.description &&

@@ -66,6 +66,51 @@ const keyboardShortcuts: ShortcutItem[] = [
     action: 'Context Menu',
     shortcut: 'Right-click',
     description: 'Open context menu for items or empty space'
+  },
+  {
+    action: 'Rename Node',
+    shortcut: 'F2 / Enter / Double-click',
+    description: 'Rename the selected node in place on the canvas'
+  },
+  {
+    action: 'Duplicate Node',
+    shortcut: 'Ctrl+D',
+    description: 'Duplicate the selected node onto a nearby free tile'
+  },
+  {
+    action: 'Delete Node',
+    shortcut: 'Delete / Backspace',
+    description: 'Delete the selected node'
+  },
+  {
+    action: 'Copy Node',
+    shortcut: 'Ctrl+C',
+    description: 'Copy the selected node'
+  },
+  {
+    action: 'Cut Node',
+    shortcut: 'Ctrl+X',
+    description: 'Copy the selected node and remove it'
+  },
+  {
+    action: 'Paste Node',
+    shortcut: 'Ctrl+V',
+    description: 'Paste the copied node at the mouse position'
+  },
+  {
+    action: 'Move Node',
+    shortcut: 'Arrow Keys',
+    description: 'Nudge the selected node one tile (pans the canvas otherwise)'
+  },
+  {
+    action: 'Deselect',
+    shortcut: 'Escape',
+    description: 'Close the settings panel, context menu or inline rename'
+  },
+  {
+    action: 'Change Icon',
+    shortcut: 'I',
+    description: "Open the icon picker for the selected node"
   }
 ];
 
@@ -170,14 +215,7 @@ export const HelpDialog = () => {
                     <TableRow key={index}>
                       <TableCell>{shortcut.action}</TableCell>
                       <TableCell>
-                        <code
-                          style={{
-                            backgroundColor: '#f5f5f5',
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            fontFamily: 'monospace'
-                          }}
-                        >
+                        <code>
                           {shortcut.shortcut}
                         </code>
                       </TableCell>
@@ -211,14 +249,7 @@ export const HelpDialog = () => {
                     <TableRow key={index}>
                       <TableCell>{interaction.action}</TableCell>
                       <TableCell>
-                        <code
-                          style={{
-                            backgroundColor: '#f5f5f5',
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            fontFamily: 'monospace'
-                          }}
-                        >
+                        <code>
                           {interaction.shortcut}
                         </code>
                       </TableCell>

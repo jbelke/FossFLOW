@@ -59,4 +59,14 @@ describe('Model item reducers works correctly', () => {
 
     expect(deletedItem).toThrow();
   });
+
+  test('Deleting an item leaves no hole in the items array', () => {
+    const newState = deleteModelItem('node1', {
+      model: modelFixture,
+      scene
+    });
+
+    expect(newState.model.items).toHaveLength(modelFixture.items.length - 1);
+    expect(newState.model.items.every(Boolean)).toBe(true);
+  });
 });

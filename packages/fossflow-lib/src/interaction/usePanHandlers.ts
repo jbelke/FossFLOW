@@ -117,13 +117,24 @@ export const usePanHandlers = () => {
         return;
       }
 
+      // Modified keys are shortcuts (eg. Ctrl+D to duplicate), never pans.
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        return;
+      }
+
+      // A selected node takes ownership of the arrow keys so they nudge it
+      // instead of panning the canvas.
+      const hasSelectedNode =
+        uiState.itemControls?.type === 'ITEM' ||
+        uiState.renamingItemId !== null;
+
       const panSettings = uiState.panSettings;
       const speed = panSettings.keyboardPanSpeed;
       let dx = 0;
       let dy = 0;
 
       // Arrow keys
-      if (panSettings.arrowKeysPan) {
+      if (panSettings.arrowKeysPan && !hasSelectedNode) {
         if (e.key === 'ArrowUp') {
           dy = speed;
           e.preventDefault();
@@ -190,7 +201,13 @@ export const usePanHandlers = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [uiState.panSettings, uiState.scroll, uiState.actions]);
+  }, [
+    uiState.panSettings,
+    uiState.scroll,
+    uiState.actions,
+    uiState.itemControls,
+    uiState.renamingItemId
+  ]);
 
   return {
     handleMouseDown,

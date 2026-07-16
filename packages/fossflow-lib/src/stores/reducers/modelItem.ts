@@ -32,7 +32,7 @@ export const deleteModelItem = (id: string, state: State): State => {
   const modelItem = getItemByIdOrThrow(state.model.items, id);
 
   const newState = produce(state, (draft) => {
-    delete draft.model.items[modelItem.index];
+    draft.model.items.splice(modelItem.index, 1);
   });
 
   return newState;

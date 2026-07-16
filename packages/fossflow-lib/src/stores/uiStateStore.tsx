@@ -34,7 +34,15 @@ const initialState = () => {
       enableDebugTools: false,
       hotkeyProfile: DEFAULT_HOTKEY_PROFILE,
       panSettings: DEFAULT_PAN_SETTINGS,
+      clipboard: null,
+      renamingItemId: null,
       actions: {
+        setClipboard: (clipboard) => {
+          set({ clipboard });
+        },
+        setRenamingItemId: (renamingItemId) => {
+          set({ renamingItemId });
+        },
         setView: (view) => {
           set({ view });
         },
@@ -55,6 +63,7 @@ const initialState = () => {
               offset: CoordsUtils.zero()
             },
             itemControls: null,
+            renamingItemId: null,
             zoom: 1
           });
         },

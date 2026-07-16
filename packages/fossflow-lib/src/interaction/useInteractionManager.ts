@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useModelStore } from 'src/stores/modelStore';
 import { useUiStateStore } from 'src/stores/uiStateStore';
-import { ModeActions, State, SlimMouseEvent } from 'src/types';
+import { ModeActions, State, SlimMouseEvent, Coords } from 'src/types';
 import { DialogTypeEnum } from 'src/types/ui';
 import { getMouse, getItemAtTile, generateId } from 'src/utils';
 import { useResizeObserver } from 'src/hooks/useResizeObserver';
 import { useScene } from 'src/hooks/useScene';
 import { useHistory } from 'src/hooks/useHistory';
+import { useNodeActions } from 'src/hooks/useNodeActions';
 import { HOTKEY_PROFILES } from 'src/config/hotkeys';
 import { TEXTBOX_DEFAULTS } from 'src/config';
 import { Cursor } from './modes/Cursor';
@@ -28,6 +29,14 @@ const modes: { [k in string]: ModeActions } = {
   PAN: Pan,
   PLACE_ICON: PlaceIcon,
   TEXTBOX: TextBox
+};
+
+// Arrow keys move a selected node along the two isometric grid axes.
+const NUDGE_DELTAS: { [key: string]: Coords } = {
+  ArrowUp: { x: 1, y: 0 },
+  ArrowDown: { x: -1, y: 0 },
+  ArrowLeft: { x: 0, y: 1 },
+  ArrowRight: { x: 0, y: -1 }
 };
 
 const getModeFunction = (mode: ModeActions, e: SlimMouseEvent) => {
@@ -55,8 +64,13 @@ export const useInteractionManager = () => {
   const scene = useScene();
   const { size: rendererSize } = useResizeObserver(uiState.rendererEl);
   const { undo, redo, canUndo, canRedo } = useHistory();
+  const { duplicateNode, deleteNode, nudgeNode, copyNode, cutNode, pasteNode } =
+    useNodeActions();
   const { createTextBox } = scene;
-  const { handleMouseDown: handlePanMouseDown, handleMouseUp: handlePanMouseUp } = usePanHandlers();
+  const {
+    handleMouseDown: handlePanMouseDown,
+    handleMouseUp: handlePanMouseUp
+  } = usePanHandlers();
 
   // Keyboard shortcuts for undo/redo
   useEffect(() => {
@@ -102,8 +116,90 @@ export const useInteractionManager = () => {
       const hotkeyMapping = HOTKEY_PROFILES[uiState.hotkeyProfile];
       const key = e.key.toLowerCase();
 
+      const selectedNodeId =
+        uiState.itemControls &&
+        'id' in uiState.itemControls &&
+        uiState.itemControls.type === 'ITEM'
+          ? uiState.itemControls.id
+          : null;
+
+      // Escape always backs out of the current selection/context menu.
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        uiState.actions.setRenamingItemId(null);
+        uiState.actions.setItemControls(null);
+        uiState.actions.setContextMenu(null);
+        uiState.actions.setMode({
+          type: 'CURSOR',
+          showCursor: true,
+          mousedownItem: null
+        });
+        return;
+      }
+
+      // Everything that mutates the diagram is editor-only. Read-only modes
+      // still allow selection, so mode alone is not a sufficient guard.
+      const canEdit = uiState.editorMode === 'EDITABLE';
+
+      // Paste needs no selection, just a clipboard and a mouse position.
+      if (canEdit && isCtrlOrCmd && key === 'v') {
+        e.preventDefault();
+        const pastedId = pasteNode(uiState.mouse.position.tile);
+        if (pastedId) {
+          uiState.actions.setItemControls({ type: 'ITEM', id: pastedId });
+        }
+        return;
+      }
+
+      if (selectedNodeId) {
+        // Copying mutates nothing, so it stays available in read-only modes.
+        if (isCtrlOrCmd && key === 'c') {
+          e.preventDefault();
+          copyNode(selectedNodeId);
+          return;
+        }
+
+        if (canEdit && isCtrlOrCmd && key === 'd') {
+          e.preventDefault();
+          const newId = duplicateNode(selectedNodeId);
+          if (newId) {
+            uiState.actions.setItemControls({ type: 'ITEM', id: newId });
+          }
+          return;
+        }
+
+        if (canEdit && isCtrlOrCmd && key === 'x') {
+          e.preventDefault();
+          cutNode(selectedNodeId);
+          return;
+        }
+
+        if (canEdit && (e.key === 'Delete' || e.key === 'Backspace')) {
+          e.preventDefault();
+          deleteNode(selectedNodeId);
+          return;
+        }
+
+        if (canEdit && (e.key === 'F2' || e.key === 'Enter')) {
+          e.preventDefault();
+          uiState.actions.setRenamingItemId(selectedNodeId);
+          return;
+        }
+
+        const nudge = NUDGE_DELTAS[e.key];
+
+        if (canEdit && nudge && !isCtrlOrCmd) {
+          e.preventDefault();
+          nudgeNode(selectedNodeId, nudge);
+          return;
+        }
+      }
+
+      // Everything below is an unmodified single-key tool shortcut.
+      if (isCtrlOrCmd) return;
+
       // Quick icon selection for selected node (when ItemControls is an ItemReference with type 'ITEM')
-      if (key === 'i' && uiState.itemControls && 'id' in uiState.itemControls && uiState.itemControls.type === 'ITEM') {
+      if (key === 'i' && selectedNodeId) {
         e.preventDefault();
         // Trigger icon change mode
         const event = new CustomEvent('quickIconChange');
@@ -169,7 +265,24 @@ export const useInteractionManager = () => {
     return () => {
       return window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [undo, redo, canUndo, canRedo, uiState.hotkeyProfile, uiState.actions, createTextBox, uiState.mouse.position.tile]);
+  }, [
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    uiState.hotkeyProfile,
+    uiState.actions,
+    uiState.itemControls,
+    uiState.editorMode,
+    createTextBox,
+    uiState.mouse.position.tile,
+    duplicateNode,
+    deleteNode,
+    nudgeNode,
+    copyNode,
+    cutNode,
+    pasteNode
+  ]);
 
   const onMouseEvent = useCallback(
     (e: SlimMouseEvent) => {
@@ -258,6 +371,21 @@ export const useInteractionManager = () => {
     [uiState.mouse, scene, uiState.actions, uiState.panSettings]
   );
 
+  // Double-clicking a node renames it in place.
+  const onDoubleClick = useCallback(() => {
+    if (uiState.editorMode !== 'EDITABLE') return;
+
+    const itemAtTile = getItemAtTile({
+      tile: uiState.mouse.position.tile,
+      scene
+    });
+
+    if (itemAtTile?.type === 'ITEM') {
+      uiState.actions.setItemControls(itemAtTile);
+      uiState.actions.setRenamingItemId(itemAtTile.id);
+    }
+  }, [uiState.mouse.position.tile, scene, uiState.actions, uiState.editorMode]);
+
   useEffect(() => {
     if (uiState.mode.type === 'INTERACTIONS_DISABLED') return;
 
@@ -305,6 +433,7 @@ export const useInteractionManager = () => {
     el.addEventListener('mousedown', onMouseEvent);
     el.addEventListener('mouseup', onMouseEvent);
     el.addEventListener('contextmenu', onContextMenu);
+    el.addEventListener('dblclick', onDoubleClick);
     el.addEventListener('touchstart', onTouchStart);
     el.addEventListener('touchmove', onTouchMove);
     el.addEventListener('touchend', onTouchEnd);
@@ -315,6 +444,7 @@ export const useInteractionManager = () => {
       el.removeEventListener('mousedown', onMouseEvent);
       el.removeEventListener('mouseup', onMouseEvent);
       el.removeEventListener('contextmenu', onContextMenu);
+      el.removeEventListener('dblclick', onDoubleClick);
       el.removeEventListener('touchstart', onTouchStart);
       el.removeEventListener('touchmove', onTouchMove);
       el.removeEventListener('touchend', onTouchEnd);
@@ -325,6 +455,7 @@ export const useInteractionManager = () => {
     onMouseEvent,
     uiState.mode.type,
     onContextMenu,
+    onDoubleClick,
     uiState.actions,
     uiState.rendererEl
   ]);

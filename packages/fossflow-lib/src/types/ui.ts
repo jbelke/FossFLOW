@@ -1,8 +1,8 @@
-import { Coords, EditorModeEnum, MainMenuOptions } from './common';
-import { Icon } from './model';
-import { ItemReference } from './scene';
 import { HotkeyProfile } from 'src/config/hotkeys';
 import { PanSettings } from 'src/config/panSettings';
+import { Coords, EditorModeEnum, MainMenuOptions } from './common';
+import { Icon, ModelItem, ViewItem } from './model';
+import { ItemReference } from './scene';
 
 interface AddItemControls {
   type: 'ADD_ITEM';
@@ -127,6 +127,15 @@ export interface ContextMenu {
   tile: Coords;
 }
 
+/**
+ * A detached copy of a node. Holds the model and view data by value so the
+ * source node can be deleted (cut) without invalidating the clipboard.
+ */
+export interface NodeClipboardEntry {
+  modelItem: Omit<ModelItem, 'id'>;
+  viewItem: Omit<ViewItem, 'id' | 'tile'>;
+}
+
 export const LayerOrderingActionOptions = {
   BRING_TO_FRONT: 'BRING_TO_FRONT',
   SEND_TO_BACK: 'SEND_TO_BACK',
@@ -153,6 +162,8 @@ export interface UiState {
   enableDebugTools: boolean;
   hotkeyProfile: HotkeyProfile;
   panSettings: PanSettings;
+  clipboard: NodeClipboardEntry | null;
+  renamingItemId: string | null;
 }
 
 export interface UiStateActions {
@@ -175,6 +186,8 @@ export interface UiStateActions {
   setEnableDebugTools: (enabled: boolean) => void;
   setHotkeyProfile: (profile: HotkeyProfile) => void;
   setPanSettings: (settings: PanSettings) => void;
+  setClipboard: (clipboard: NodeClipboardEntry | null) => void;
+  setRenamingItemId: (id: string | null) => void;
 }
 
 export type UiStateStore = UiState & {

@@ -8,6 +8,7 @@ import {
 import { useIconCategories } from 'src/hooks/useIconCategories';
 import { useIcon } from 'src/hooks/useIcon';
 import { useScene } from 'src/hooks/useScene';
+import { useNodeActions } from 'src/hooks/useNodeActions';
 import { useViewItem } from 'src/hooks/useViewItem';
 import { useUiStateStore } from 'src/stores/uiStateStore';
 import { useModelItem } from 'src/hooks/useModelItem';
@@ -30,7 +31,8 @@ type Mode = keyof typeof ModeOptions;
 
 export const NodeControls = ({ id }: Props) => {
   const [mode, setMode] = useState<Mode>('SETTINGS');
-  const { updateModelItem, updateViewItem, deleteViewItem } = useScene();
+  const { updateModelItem, updateViewItem } = useScene();
+  const { deleteNode } = useNodeActions();
   const uiStateActions = useUiStateStore((state) => {
     return state.actions;
   });
@@ -134,8 +136,7 @@ export const NodeControls = ({ id }: Props) => {
             updateViewItem(viewItem.id, updates);
           }}
           onDeleted={() => {
-            uiStateActions.setItemControls(null);
-            deleteViewItem(viewItem.id);
+            deleteNode(viewItem.id);
           }}
         />
       )}

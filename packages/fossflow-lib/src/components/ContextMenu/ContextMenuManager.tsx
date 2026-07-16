@@ -1,9 +1,9 @@
 import React, { useCallback } from 'react';
 import { useUiStateStore } from 'src/stores/uiStateStore';
-import { getTilePosition, CoordsUtils, generateId, findNearestUnoccupiedTile } from 'src/utils';
+import { getTilePosition, CoordsUtils, generateId } from 'src/utils';
 import { useScene } from 'src/hooks/useScene';
+import { useNodeActions } from 'src/hooks/useNodeActions';
 import { useModelStore } from 'src/stores/modelStore';
-import { VIEW_ITEM_DEFAULTS } from 'src/config';
 import { ContextMenu } from './ContextMenu';
 
 interface Props {
@@ -12,6 +12,14 @@ interface Props {
 
 export const ContextMenuManager = ({ anchorEl }: Props) => {
   const scene = useScene();
+  const {
+    createNode,
+    duplicateNode,
+    deleteNode,
+    copyNode,
+    pasteNode,
+    hasClipboard
+  } = useNodeActions();
   const model = useModelStore((state) => {
     return state;
   });
@@ -48,28 +56,35 @@ export const ContextMenuManager = ({ anchorEl }: Props) => {
             label: 'Add Node',
             onClick: () => {
               if (model.icons.length > 0) {
-                const modelItemId = generateId();
-                const firstIcon = model.icons[0];
-                
-                // Find nearest unoccupied tile (should return the same tile since context menu is for empty tiles)
-                const targetTile = findNearestUnoccupiedTile(contextMenu.tile, scene) || contextMenu.tile;
+                const newId = createNode(contextMenu.tile, model.icons[0].id);
 
-                scene.placeIcon({
-                  modelItem: {
-                    id: modelItemId,
-                    name: 'Untitled',
-                    icon: firstIcon.id
-                  },
-                  viewItem: {
-                    ...VIEW_ITEM_DEFAULTS,
-                    id: modelItemId,
-                    tile: targetTile
-                  }
-                });
+                // Drop straight into renaming so the node can be named
+                // without a trip to the settings panel.
+                if (newId) {
+                  uiStateActions.setItemControls({ type: 'ITEM', id: newId });
+                  uiStateActions.setRenamingItemId(newId);
+                }
               }
               onClose();
             }
           },
+          ...(hasClipboard
+            ? [
+                {
+                  label: 'Paste',
+                  onClick: () => {
+                    const pastedId = pasteNode(contextMenu.tile);
+                    if (pastedId) {
+                      uiStateActions.setItemControls({
+                        type: 'ITEM',
+                        id: pastedId
+                      });
+                    }
+                    onClose();
+                  }
+                }
+              ]
+            : []),
           {
             label: 'Add Rectangle',
             onClick: () => {
@@ -99,6 +114,41 @@ export const ContextMenuManager = ({ anchorEl }: Props) => {
           zoom
         )}
         menuItems={[
+          {
+            label: 'Rename',
+            onClick: () => {
+              uiStateActions.setItemControls({
+                type: 'ITEM',
+                id: contextMenu.item!.id
+              });
+              uiStateActions.setRenamingItemId(contextMenu.item!.id);
+              onClose();
+            }
+          },
+          {
+            label: 'Duplicate',
+            onClick: () => {
+              const newId = duplicateNode(contextMenu.item!.id);
+              if (newId) {
+                uiStateActions.setItemControls({ type: 'ITEM', id: newId });
+              }
+              onClose();
+            }
+          },
+          {
+            label: 'Copy',
+            onClick: () => {
+              copyNode(contextMenu.item!.id);
+              onClose();
+            }
+          },
+          {
+            label: 'Delete',
+            onClick: () => {
+              deleteNode(contextMenu.item!.id);
+              onClose();
+            }
+          },
           {
             label: 'Send backward',
             onClick: () => {
