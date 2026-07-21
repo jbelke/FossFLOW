@@ -21,5 +21,6 @@ export const connectorSchema = z.object({
   width: z.number().optional(),
   style: z.enum(connectorStyleOptions).optional(),
   showArrow: z.boolean().optional(),
-  anchors: z.array(anchorSchema)
+  anchors: z.array(anchorSchema),
+  layerId: id.optional()
 });

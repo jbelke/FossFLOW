@@ -5,5 +5,6 @@ export const rectangleSchema = z.object({
   id,
   color: id.optional(),
   from: coords,
-  to: coords
+  to: coords,
+  layerId: id.optional()
 });

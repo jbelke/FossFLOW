@@ -6,6 +6,7 @@ import {
   TextBox,
   Rectangle,
   ItemReference,
+  Layer,
   LayerOrderingAction
 } from 'src/types';
 import { useUiStateStore } from 'src/stores/uiStateStore';
@@ -103,6 +104,10 @@ export const useScene = () => {
       };
     });
   }, [currentView.textBoxes, scene?.textBoxes]);
+
+  const layers = useMemo(() => {
+    return currentView.layers ?? [];
+  }, [currentView.layers]);
 
   const getState = useCallback(() => {
     return {
@@ -490,6 +495,94 @@ export const useScene = () => {
     ]
   );
 
+  const createLayer = useCallback(
+    (newLayer: Layer) => {
+      if (!model?.actions || !scene?.actions || !currentViewId) return;
+
+      saveToHistoryBeforeChange();
+      const newState = reducers.view({
+        action: 'CREATE_LAYER',
+        payload: newLayer,
+        ctx: { viewId: currentViewId, state: getState() }
+      });
+      setState(newState);
+    },
+    [
+      getState,
+      setState,
+      currentViewId,
+      saveToHistoryBeforeChange,
+      model?.actions,
+      scene?.actions
+    ]
+  );
+
+  const updateLayer = useCallback(
+    (id: string, updates: Partial<Layer>) => {
+      if (!model?.actions || !scene?.actions || !currentViewId) return;
+
+      saveToHistoryBeforeChange();
+      const newState = reducers.view({
+        action: 'UPDATE_LAYER',
+        payload: { id, ...updates },
+        ctx: { viewId: currentViewId, state: getState() }
+      });
+      setState(newState);
+    },
+    [
+      getState,
+      setState,
+      currentViewId,
+      saveToHistoryBeforeChange,
+      model?.actions,
+      scene?.actions
+    ]
+  );
+
+  const deleteLayer = useCallback(
+    (id: string) => {
+      if (!model?.actions || !scene?.actions || !currentViewId) return;
+
+      saveToHistoryBeforeChange();
+      const newState = reducers.view({
+        action: 'DELETE_LAYER',
+        payload: id,
+        ctx: { viewId: currentViewId, state: getState() }
+      });
+      setState(newState);
+    },
+    [
+      getState,
+      setState,
+      currentViewId,
+      saveToHistoryBeforeChange,
+      model?.actions,
+      scene?.actions
+    ]
+  );
+
+  const setItemsLayer = useCallback(
+    (itemRefs: ItemReference[], layerId: string | null) => {
+      if (!model?.actions || !scene?.actions || !currentViewId) return;
+
+      saveToHistoryBeforeChange();
+      const newState = reducers.view({
+        action: 'SET_ITEMS_LAYER',
+        payload: { items: itemRefs, layerId },
+        ctx: { viewId: currentViewId, state: getState() }
+      });
+      setState(newState);
+    },
+    [
+      getState,
+      setState,
+      currentViewId,
+      saveToHistoryBeforeChange,
+      model?.actions,
+      scene?.actions
+    ]
+  );
+
   const transaction = useCallback(
     (operations: () => void) => {
       if (!model?.actions || !scene?.actions) return;
@@ -555,6 +648,7 @@ export const useScene = () => {
     colors,
     rectangles,
     textBoxes,
+    layers,
     currentView,
     createModelItem,
     updateModelItem,
@@ -572,6 +666,10 @@ export const useScene = () => {
     updateRectangle,
     deleteRectangle,
     changeLayerOrder,
+    createLayer,
+    updateLayer,
+    deleteLayer,
+    setItemsLayer,
     transaction,
     placeIcon
   };

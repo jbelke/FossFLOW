@@ -7,6 +7,7 @@ import {
   viewsSchema,
   viewSchema,
   viewItemSchema,
+  layerSchema,
   connectorSchema,
   iconsSchema,
   colorsSchema,
@@ -27,6 +28,7 @@ export type ModelItem = z.infer<typeof modelItemSchema>;
 export type Views = z.infer<typeof viewsSchema>;
 export type View = z.infer<typeof viewSchema>;
 export type ViewItem = z.infer<typeof viewItemSchema>;
+export type Layer = z.infer<typeof layerSchema>;
 export type ConnectorStyle = keyof typeof connectorStyleOptions;
 export type ConnectorAnchor = z.infer<typeof anchorSchema>;
 export type Connector = z.infer<typeof connectorSchema>;

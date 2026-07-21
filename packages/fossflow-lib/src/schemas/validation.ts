@@ -7,6 +7,7 @@ import type {
   Rectangle
 } from 'src/types';
 import { getAllAnchors, getItemByIdOrThrow } from 'src/utils';
+import { BASE_LAYER_ID } from './views';
 
 type IssueType =
   | {
@@ -70,6 +71,15 @@ type IssueType =
       params: {
         connector: string;
         view: string;
+      };
+    }
+  | {
+      type: 'INVALID_LAYER_REF';
+      params: {
+        entityType: 'ITEM' | 'CONNECTOR' | 'RECTANGLE' | 'TEXTBOX';
+        entity: string;
+        view: string;
+        layer: string;
       };
     };
 
@@ -265,6 +275,49 @@ export const validateView = (view: View, ctx: { model: Model }): Issue[] => {
           'Invalid item in view.  The item references a non-existant item in the model.'
       });
     }
+  });
+
+  // layerId must resolve to a layer in this view. BASE_LAYER_ID is never
+  // stamped onto entities, but tolerate it if a hand-edited document does.
+  const layerIds = new Set(
+    (view.layers ?? []).map((layer) => {
+      return layer.id;
+    })
+  );
+
+  const checkLayerRef = (
+    entityType: 'ITEM' | 'CONNECTOR' | 'RECTANGLE' | 'TEXTBOX',
+    entity: { id: string; layerId?: string }
+  ) => {
+    if (
+      entity.layerId &&
+      entity.layerId !== BASE_LAYER_ID &&
+      !layerIds.has(entity.layerId)
+    ) {
+      issues.push({
+        type: 'INVALID_LAYER_REF',
+        params: {
+          entityType,
+          entity: entity.id,
+          view: view.id,
+          layer: entity.layerId
+        },
+        message: 'Item references a layer that does not exist in this view.'
+      });
+    }
+  };
+
+  view.items.forEach((viewItem) => {
+    return checkLayerRef('ITEM', viewItem);
+  });
+  (view.connectors ?? []).forEach((connector) => {
+    return checkLayerRef('CONNECTOR', connector);
+  });
+  (view.rectangles ?? []).forEach((rectangle) => {
+    return checkLayerRef('RECTANGLE', rectangle);
+  });
+  (view.textBoxes ?? []).forEach((textBox) => {
+    return checkLayerRef('TEXTBOX', textBox);
   });
 
   return issues;

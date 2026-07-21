@@ -5,6 +5,7 @@ import type * as connectorReducers from './connector';
 import type * as textBoxReducers from './textBox';
 import type * as rectangleReducers from './rectangle';
 import type * as layerOrderingReducers from './layerOrdering';
+import type * as layerReducers from './layer';
 
 export interface State {
   model: Model;
@@ -88,6 +89,22 @@ type ViewReducerAction =
   | {
       action: 'CHANGE_LAYER_ORDER';
       payload: Parameters<typeof layerOrderingReducers.changeLayerOrder>[0];
+    }
+  | {
+      action: 'CREATE_LAYER';
+      payload: Parameters<typeof layerReducers.createLayer>[0];
+    }
+  | {
+      action: 'UPDATE_LAYER';
+      payload: Parameters<typeof layerReducers.updateLayer>[0];
+    }
+  | {
+      action: 'DELETE_LAYER';
+      payload: Parameters<typeof layerReducers.deleteLayer>[0];
+    }
+  | {
+      action: 'SET_ITEMS_LAYER';
+      payload: Parameters<typeof layerReducers.setItemsLayer>[0];
     };
 
 export type ViewReducerParams = ViewReducerAction & { ctx: ViewReducerContext };

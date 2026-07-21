@@ -8,8 +8,11 @@ import {
   ViewItem,
   View,
   Rectangle,
-  Colors
+  Colors,
+  Layer
 } from 'src/types';
+
+export { BASE_LAYER_ID } from 'src/schemas/views';
 import { CoordsUtils } from 'src/utils';
 import { customVars } from './styles/theme';
 
@@ -38,14 +41,27 @@ export const VIEW_DEFAULTS: Required<
   items: [],
   connectors: [],
   rectangles: [],
-  textBoxes: []
+  textBoxes: [],
+  layers: []
 };
 
-export const VIEW_ITEM_DEFAULTS: Required<Omit<ViewItem, 'id' | 'tile'>> = {
+export const LAYER_DEFAULTS: Required<Omit<Layer, 'id'>> = {
+  name: 'Untitled layer',
+  isVisible: true,
+  isLocked: false
+};
+
+// layerId stays out of every DEFAULTS object: base-layer membership is
+// canonically "no layerId key" (see src/schemas/views.ts).
+export const VIEW_ITEM_DEFAULTS: Required<
+  Omit<ViewItem, 'id' | 'tile' | 'layerId'>
+> = {
   labelHeight: 80
 };
 
-export const CONNECTOR_DEFAULTS: Required<Omit<Connector, 'id' | 'color'>> = {
+export const CONNECTOR_DEFAULTS: Required<
+  Omit<Connector, 'id' | 'color' | 'layerId'>
+> = {
   width: 10,
   description: '',
   anchors: [],
@@ -57,7 +73,9 @@ export const CONNECTOR_DEFAULTS: Required<Omit<Connector, 'id' | 'color'>> = {
 // is the grid that encompasses the two nodes + the offset below.
 export const CONNECTOR_SEARCH_OFFSET = { x: 1, y: 1 };
 
-export const TEXTBOX_DEFAULTS: Required<Omit<TextBox, 'id' | 'tile'>> = {
+export const TEXTBOX_DEFAULTS: Required<
+  Omit<TextBox, 'id' | 'tile' | 'layerId'>
+> = {
   orientation: 'X',
   fontSize: 0.6,
   content: 'Text'
@@ -67,7 +85,7 @@ export const TEXTBOX_PADDING = 0.2;
 export const TEXTBOX_FONT_WEIGHT = 'bold';
 
 export const RECTANGLE_DEFAULTS: Required<
-  Omit<Rectangle, 'id' | 'from' | 'to' | 'color'>
+  Omit<Rectangle, 'id' | 'from' | 'to' | 'color' | 'layerId'>
 > = {};
 
 export const ZOOM_INCREMENT = 0.2;
