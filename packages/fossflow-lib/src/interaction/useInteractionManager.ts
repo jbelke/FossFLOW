@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { useModelStore } from 'src/stores/modelStore';
-import { useUiStateStore } from 'src/stores/uiStateStore';
+import { useModelStoreApi } from 'src/stores/modelStore';
+import {
+  useUiStateStore,
+  useUiStateStoreApi
+} from 'src/stores/uiStateStore';
 import { ModeActions, State, SlimMouseEvent, Coords } from 'src/types';
 import { DialogTypeEnum } from 'src/types/ui';
 import { getMouse, getItemAtTile, generateId } from 'src/utils';
@@ -52,17 +55,20 @@ const getModeFunction = (mode: ModeActions, e: SlimMouseEvent) => {
   }
 };
 
+// Mouse state changes on every pixel of movement, so nothing here may
+// subscribe to it (or to the stores wholesale): handlers read store state at
+// event time via getState() instead. Window listeners are attached once per
+// renderer element through a latest-handler ref, never re-attached per render.
 export const useInteractionManager = () => {
   const rendererRef = useRef<HTMLElement>();
   const reducerTypeRef = useRef<string>();
-  const uiState = useUiStateStore((state) => {
-    return state;
-  });
-  const model = useModelStore((state) => {
-    return state;
+  const uiStateApi = useUiStateStoreApi();
+  const modelApi = useModelStoreApi();
+  const rendererEl = useUiStateStore((state) => {
+    return state.rendererEl;
   });
   const scene = useScene();
-  const { size: rendererSize } = useResizeObserver(uiState.rendererEl);
+  const { size: rendererSize } = useResizeObserver(rendererEl);
   const { undo, redo, canUndo, canRedo } = useHistory();
   const { duplicateNode, deleteNode, nudgeNode, copyNode, cutNode, pasteNode } =
     useNodeActions();
@@ -86,6 +92,7 @@ export const useInteractionManager = () => {
         return;
       }
 
+      const uiState = uiStateApi.getState();
       const isCtrlOrCmd = e.ctrlKey || e.metaKey;
 
       if (isCtrlOrCmd && e.key.toLowerCase() === 'z' && !e.shiftKey) {
@@ -270,12 +277,8 @@ export const useInteractionManager = () => {
     redo,
     canUndo,
     canRedo,
-    uiState.hotkeyProfile,
-    uiState.actions,
-    uiState.itemControls,
-    uiState.editorMode,
+    uiStateApi,
     createTextBox,
-    uiState.mouse.position.tile,
     duplicateNode,
     deleteNode,
     nudgeNode,
@@ -284,95 +287,100 @@ export const useInteractionManager = () => {
     pasteNode
   ]);
 
-  const onMouseEvent = useCallback(
-    (e: SlimMouseEvent) => {
-      if (!rendererRef.current) return;
+  const onMouseEvent = (e: SlimMouseEvent) => {
+    if (!rendererRef.current) return;
 
-      // Check pan handlers first
-      if (e.type === 'mousedown' && handlePanMouseDown(e)) {
-        return;
+    const prevUiState = uiStateApi.getState();
+
+    if (prevUiState.mode.type === 'INTERACTIONS_DISABLED') return;
+
+    // Check pan handlers first
+    if (e.type === 'mousedown' && handlePanMouseDown(e)) {
+      return;
+    }
+    if (e.type === 'mouseup' && handlePanMouseUp(e)) {
+      return;
+    }
+
+    const mode = modes[prevUiState.mode.type];
+    const modeFunction = getModeFunction(mode, e);
+
+    if (!modeFunction) return;
+
+    const nextMouse = getMouse({
+      interactiveElement: rendererRef.current,
+      zoom: prevUiState.zoom,
+      scroll: prevUiState.scroll,
+      lastMouse: prevUiState.mouse,
+      mouseEvent: e,
+      rendererSize
+    });
+
+    prevUiState.actions.setMouse(nextMouse);
+
+    const baseState: State = {
+      model: modelApi.getState(),
+      scene,
+      uiState: uiStateApi.getState(),
+      rendererRef: rendererRef.current,
+      rendererSize,
+      isRendererInteraction: rendererRef.current === e.target
+    };
+
+    if (reducerTypeRef.current !== prevUiState.mode.type) {
+      const prevReducer = reducerTypeRef.current
+        ? modes[reducerTypeRef.current]
+        : null;
+
+      if (prevReducer && prevReducer.exit) {
+        prevReducer.exit(baseState);
       }
-      if (e.type === 'mouseup' && handlePanMouseUp(e)) {
-        return;
+
+      if (mode.entry) {
+        mode.entry(baseState);
       }
+    }
 
-      const mode = modes[uiState.mode.type];
-      const modeFunction = getModeFunction(mode, e);
+    modeFunction(baseState);
+    reducerTypeRef.current = prevUiState.mode.type;
+  };
 
-      if (!modeFunction) return;
+  const onContextMenu = (e: SlimMouseEvent) => {
+    e.preventDefault();
 
-      const nextMouse = getMouse({
-        interactiveElement: rendererRef.current,
-        zoom: uiState.zoom,
-        scroll: uiState.scroll,
-        lastMouse: uiState.mouse,
-        mouseEvent: e,
-        rendererSize
+    const uiState = uiStateApi.getState();
+
+    if (uiState.mode.type === 'INTERACTIONS_DISABLED') return;
+
+    // Don't show context menu if right-click pan is enabled
+    if (uiState.panSettings.rightClickPan) {
+      return;
+    }
+
+    const itemAtTile = getItemAtTile({
+      tile: uiState.mouse.position.tile,
+      scene
+    });
+
+    if (itemAtTile) {
+      uiState.actions.setContextMenu({
+        type: 'ITEM',
+        item: itemAtTile,
+        tile: uiState.mouse.position.tile
       });
-
-      uiState.actions.setMouse(nextMouse);
-
-      const baseState: State = {
-        model,
-        scene,
-        uiState,
-        rendererRef: rendererRef.current,
-        rendererSize,
-        isRendererInteraction: rendererRef.current === e.target
-      };
-
-      if (reducerTypeRef.current !== uiState.mode.type) {
-        const prevReducer = reducerTypeRef.current
-          ? modes[reducerTypeRef.current]
-          : null;
-
-        if (prevReducer && prevReducer.exit) {
-          prevReducer.exit(baseState);
-        }
-
-        if (mode.entry) {
-          mode.entry(baseState);
-        }
-      }
-
-      modeFunction(baseState);
-      reducerTypeRef.current = uiState.mode.type;
-    },
-    [model, scene, uiState, rendererSize, handlePanMouseDown, handlePanMouseUp]
-  );
-
-  const onContextMenu = useCallback(
-    (e: SlimMouseEvent) => {
-      e.preventDefault();
-
-      // Don't show context menu if right-click pan is enabled
-      if (uiState.panSettings.rightClickPan) {
-        return;
-      }
-
-      const itemAtTile = getItemAtTile({
-        tile: uiState.mouse.position.tile,
-        scene
+    } else {
+      uiState.actions.setContextMenu({
+        type: 'EMPTY',
+        tile: uiState.mouse.position.tile
       });
-
-      if (itemAtTile) {
-        uiState.actions.setContextMenu({
-          type: 'ITEM',
-          item: itemAtTile,
-          tile: uiState.mouse.position.tile
-        });
-      } else {
-        uiState.actions.setContextMenu({
-          type: 'EMPTY',
-          tile: uiState.mouse.position.tile
-        });
-      }
-    },
-    [uiState.mouse, scene, uiState.actions, uiState.panSettings]
-  );
+    }
+  };
 
   // Double-clicking a node renames it in place.
-  const onDoubleClick = useCallback(() => {
+  const onDoubleClick = () => {
+    const uiState = uiStateApi.getState();
+
+    if (uiState.mode.type === 'INTERACTIONS_DISABLED') return;
     if (uiState.editorMode !== 'EDITABLE') return;
 
     const itemAtTile = getItemAtTile({
@@ -384,15 +392,34 @@ export const useInteractionManager = () => {
       uiState.actions.setItemControls(itemAtTile);
       uiState.actions.setRenamingItemId(itemAtTile.id);
     }
-  }, [uiState.mouse.position.tile, scene, uiState.actions, uiState.editorMode]);
+  };
+
+  // The listeners below are attached once and dispatch through this ref, so
+  // the handlers always see the latest render's closures (scene etc.) without
+  // the listeners themselves ever churning.
+  const handlersRef = useRef({ onMouseEvent, onContextMenu, onDoubleClick });
 
   useEffect(() => {
-    if (uiState.mode.type === 'INTERACTIONS_DISABLED') return;
+    handlersRef.current = { onMouseEvent, onContextMenu, onDoubleClick };
+  });
 
+  useEffect(() => {
     const el = window;
 
+    const handleMouseEvent = (e: MouseEvent) => {
+      handlersRef.current.onMouseEvent(e);
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      handlersRef.current.onContextMenu(e);
+    };
+
+    const handleDoubleClick = () => {
+      handlersRef.current.onDoubleClick();
+    };
+
     const onTouchStart = (e: TouchEvent) => {
-      onMouseEvent({
+      handlersRef.current.onMouseEvent({
         ...e,
         clientX: Math.floor(e.touches[0].clientX),
         clientY: Math.floor(e.touches[0].clientY),
@@ -402,7 +429,7 @@ export const useInteractionManager = () => {
     };
 
     const onTouchMove = (e: TouchEvent) => {
-      onMouseEvent({
+      handlersRef.current.onMouseEvent({
         ...e,
         clientX: Math.floor(e.touches[0].clientX),
         clientY: Math.floor(e.touches[0].clientY),
@@ -412,7 +439,7 @@ export const useInteractionManager = () => {
     };
 
     const onTouchEnd = (e: TouchEvent) => {
-      onMouseEvent({
+      handlersRef.current.onMouseEvent({
         ...e,
         clientX: 0,
         clientY: 0,
@@ -422,43 +449,39 @@ export const useInteractionManager = () => {
     };
 
     const onScroll = (e: WheelEvent) => {
+      const { mode, actions } = uiStateApi.getState();
+
+      if (mode.type === 'INTERACTIONS_DISABLED') return;
+
       if (e.deltaY > 0) {
-        uiState.actions.decrementZoom();
+        actions.decrementZoom();
       } else {
-        uiState.actions.incrementZoom();
+        actions.incrementZoom();
       }
     };
 
-    el.addEventListener('mousemove', onMouseEvent);
-    el.addEventListener('mousedown', onMouseEvent);
-    el.addEventListener('mouseup', onMouseEvent);
-    el.addEventListener('contextmenu', onContextMenu);
-    el.addEventListener('dblclick', onDoubleClick);
+    el.addEventListener('mousemove', handleMouseEvent);
+    el.addEventListener('mousedown', handleMouseEvent);
+    el.addEventListener('mouseup', handleMouseEvent);
+    el.addEventListener('contextmenu', handleContextMenu);
+    el.addEventListener('dblclick', handleDoubleClick);
     el.addEventListener('touchstart', onTouchStart);
     el.addEventListener('touchmove', onTouchMove);
     el.addEventListener('touchend', onTouchEnd);
-    uiState.rendererEl?.addEventListener('wheel', onScroll);
+    rendererEl?.addEventListener('wheel', onScroll);
 
     return () => {
-      el.removeEventListener('mousemove', onMouseEvent);
-      el.removeEventListener('mousedown', onMouseEvent);
-      el.removeEventListener('mouseup', onMouseEvent);
-      el.removeEventListener('contextmenu', onContextMenu);
-      el.removeEventListener('dblclick', onDoubleClick);
+      el.removeEventListener('mousemove', handleMouseEvent);
+      el.removeEventListener('mousedown', handleMouseEvent);
+      el.removeEventListener('mouseup', handleMouseEvent);
+      el.removeEventListener('contextmenu', handleContextMenu);
+      el.removeEventListener('dblclick', handleDoubleClick);
       el.removeEventListener('touchstart', onTouchStart);
       el.removeEventListener('touchmove', onTouchMove);
       el.removeEventListener('touchend', onTouchEnd);
-      uiState.rendererEl?.removeEventListener('wheel', onScroll);
+      rendererEl?.removeEventListener('wheel', onScroll);
     };
-  }, [
-    uiState.editorMode,
-    onMouseEvent,
-    uiState.mode.type,
-    onContextMenu,
-    onDoubleClick,
-    uiState.actions,
-    uiState.rendererEl
-  ]);
+  }, [rendererEl, uiStateApi]);
 
   const setInteractionsElement = useCallback((element: HTMLElement) => {
     rendererRef.current = element;

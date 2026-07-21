@@ -195,3 +195,14 @@ export function useModelStore<T>(
   const value = useStore(store, selector, equalityFn);
   return value;
 }
+
+// Non-reactive access to the store (read via getState() at event time).
+export function useModelStoreApi() {
+  const store = useContext(ModelContext);
+
+  if (store === null) {
+    throw new Error('Missing provider in the tree');
+  }
+
+  return store;
+}

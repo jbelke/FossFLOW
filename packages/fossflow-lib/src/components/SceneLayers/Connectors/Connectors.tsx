@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import type { useScene } from 'src/hooks/useScene';
 import { useUiStateStore } from 'src/stores/uiStateStore';
 import { Connector } from './Connector';
@@ -8,24 +8,18 @@ interface Props {
 }
 
 export const Connectors = ({ connectors }: Props) => {
-  const itemControls = useUiStateStore((state) => {
-    return state.itemControls;
-  });
-
-  const mode = useUiStateStore((state) => {
-    return state.mode;
-  });
-
-  const selectedConnectorId = useMemo(() => {
-    if (mode.type === 'CONNECTOR') {
-      return mode.id;
+  // Derive a primitive in the selector so mode/itemControls identity churn
+  // (every setMode call) doesn't re-render all connectors.
+  const selectedConnectorId = useUiStateStore((state) => {
+    if (state.mode.type === 'CONNECTOR') {
+      return state.mode.id;
     }
-    if (itemControls?.type === 'CONNECTOR') {
-      return itemControls.id;
+    if (state.itemControls?.type === 'CONNECTOR') {
+      return state.itemControls.id;
     }
 
     return null;
-  }, [mode, itemControls]);
+  });
 
   return (
     <>

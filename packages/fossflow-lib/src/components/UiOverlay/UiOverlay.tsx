@@ -15,6 +15,7 @@ import { useResizeObserver } from 'src/hooks/useResizeObserver';
 import { ContextMenuManager } from 'src/components/ContextMenu/ContextMenuManager';
 import { useScene } from 'src/hooks/useScene';
 import { useModelStore } from 'src/stores/modelStore';
+import { nullableTileEq } from 'src/utils';
 import { ExportImageDialog } from '../ExportImageDialog/ExportImageDialog';
 import { HelpDialog } from '../HelpDialog/HelpDialog';
 import { SettingsDialog } from '../SettingsDialog/SettingsDialog';
@@ -50,6 +51,26 @@ const getEditorModeMapping = (editorMode: keyof typeof EditorModeEnum) => {
   return availableUiFeatures;
 };
 
+// Isolated so that only this tiny component tracks the mouse during icon
+// placement — subscribing to mouse in UiOverlay itself would re-render the
+// whole overlay on every mouse pixel.
+const PlaceIconPreview = () => {
+  const iconId = useUiStateStore((state) => {
+    return state.mode.type === 'PLACE_ICON' ? state.mode.id : null;
+  });
+  const tile = useUiStateStore((state) => {
+    return state.mode.type === 'PLACE_ICON' ? state.mouse.position.tile : null;
+  }, nullableTileEq);
+
+  if (!iconId || !tile) return null;
+
+  return (
+    <SceneLayer disableAnimation>
+      <DragAndDrop iconId={iconId} tile={tile} />
+    </SceneLayer>
+  );
+};
+
 export const UiOverlay = () => {
   const theme = useTheme();
   const contextMenuAnchorRef = useRef();
@@ -66,12 +87,6 @@ export const UiOverlay = () => {
   });
   const enableDebugTools = useUiStateStore((state) => {
     return state.enableDebugTools;
-  });
-  const mode = useUiStateStore((state) => {
-    return state.mode;
-  });
-  const mouse = useUiStateStore((state) => {
-    return state.mouse;
   });
   const dialog = useUiStateStore((state) => {
     return state.dialog;
@@ -225,11 +240,7 @@ export const UiOverlay = () => {
         )}
       </Box>
 
-      {mode.type === 'PLACE_ICON' && mode.id && (
-        <SceneLayer disableAnimation>
-          <DragAndDrop iconId={mode.id} tile={mouse.position.tile} />
-        </SceneLayer>
-      )}
+      <PlaceIconPreview />
 
       {dialog === DialogTypeEnum.EXPORT_IMAGE && (
         <ExportImageDialog

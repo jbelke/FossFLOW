@@ -1,4 +1,5 @@
 export * from './CoordsUtils';
+export * from './equality';
 export * from './SizeUtils';
 export * from './common';
 export * from './pathfinder';

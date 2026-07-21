@@ -140,13 +140,28 @@ export const UiStateProvider = ({ children }: ProviderProps) => {
   );
 };
 
-export function useUiStateStore<T>(selector: (state: UiStateStore) => T) {
+export function useUiStateStore<T>(
+  selector: (state: UiStateStore) => T,
+  equalityFn?: (left: T, right: T) => boolean
+) {
   const store = useContext(UiStateContext);
 
   if (store === null) {
     throw new Error('Missing provider in the tree');
   }
 
-  const value = useStore(store, selector);
+  const value = useStore(store, selector, equalityFn);
   return value;
+}
+
+// Non-reactive access to the store (read via getState() at event time).
+// Subscribing components should use useUiStateStore with a narrow selector.
+export function useUiStateStoreApi() {
+  const store = useContext(UiStateContext);
+
+  if (store === null) {
+    throw new Error('Missing provider in the tree');
+  }
+
+  return store;
 }

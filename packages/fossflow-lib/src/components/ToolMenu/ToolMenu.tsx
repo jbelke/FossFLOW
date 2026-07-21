@@ -11,7 +11,10 @@ import {
   Redo as RedoIcon,
   Help as HelpIcon
 } from '@mui/icons-material';
-import { useUiStateStore } from 'src/stores/uiStateStore';
+import {
+  useUiStateStore,
+  useUiStateStoreApi
+} from 'src/stores/uiStateStore';
 import { IconButton } from 'src/components/IconButton/IconButton';
 import { UiElement } from 'src/components/UiElement/UiElement';
 import { useScene } from 'src/hooks/useScene';
@@ -29,9 +32,9 @@ export const ToolMenu = () => {
   const uiStateStoreActions = useUiStateStore((state) => {
     return state.actions;
   });
-  const mousePosition = useUiStateStore((state) => {
-    return state.mouse.position.tile;
-  });
+  // Mouse position is only needed at click time; subscribing to it would
+  // re-render the toolbar on every mouse pixel.
+  const uiStateApi = useUiStateStoreApi();
   const hotkeyProfile = useUiStateStore((state) => {
     return state.hotkeyProfile;
   });
@@ -52,7 +55,7 @@ export const ToolMenu = () => {
     createTextBox({
       ...TEXTBOX_DEFAULTS,
       id: textBoxId,
-      tile: mousePosition
+      tile: uiStateApi.getState().mouse.position.tile
     });
 
     uiStateStoreActions.setMode({
@@ -60,7 +63,7 @@ export const ToolMenu = () => {
       showCursor: false,
       id: textBoxId
     });
-  }, [uiStateStoreActions, createTextBox, mousePosition]);
+  }, [uiStateStoreActions, createTextBox, uiStateApi]);
 
   return (
     <UiElement>

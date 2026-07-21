@@ -1,9 +1,8 @@
 import React, { useEffect } from 'react';
-import { ThemeProvider } from '@mui/material/styles';
 import { Box } from '@mui/material';
-import { theme } from 'src/styles/theme';
+import { ThemeProvider } from 'src/styles/ThemeProvider';
 import { IsoflowProps } from 'src/types';
-import { setWindowCursor, modelFromModelStore } from 'src/utils';
+import { setWindowCursor, modelFromModelStore, shallow } from 'src/utils';
 import { useModelStore, ModelProvider } from 'src/stores/modelStore';
 import { SceneProvider } from 'src/stores/sceneStore';
 import { GlobalStyles } from 'src/styles/GlobalStyles';
@@ -27,9 +26,11 @@ const App = ({
     return state.actions;
   });
   const initialDataManager = useInitialDataManager();
+  // modelFromModelStore builds a fresh object per run; shallow-compare its
+  // fields (stable refs) so history pushes don't re-render the whole app.
   const model = useModelStore((state) => {
     return modelFromModelStore(state);
-  });
+  }, shallow);
 
   const { load } = initialDataManager;
 
@@ -81,7 +82,7 @@ const App = ({
 
 export const Isoflow = (props: IsoflowProps) => {
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider>
       <ModelProvider>
         <SceneProvider>
           <UiStateProvider>
