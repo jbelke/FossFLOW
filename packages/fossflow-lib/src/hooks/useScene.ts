@@ -14,7 +14,11 @@ import { useModelStore } from 'src/stores/modelStore';
 import { useSceneStore } from 'src/stores/sceneStore';
 import * as reducers from 'src/stores/reducers';
 import type { State } from 'src/stores/reducers/types';
-import { getItemByIdOrThrow } from 'src/utils';
+import {
+  getItemByIdOrThrow,
+  computeVisibility,
+  getEffectiveLayerId
+} from 'src/utils';
 import {
   CONNECTOR_DEFAULTS,
   RECTANGLE_DEFAULTS,
@@ -108,6 +112,48 @@ export const useScene = () => {
   const layers = useMemo(() => {
     return currentView.layers ?? [];
   }, [currentView.layers]);
+
+  const visibility = useMemo(() => {
+    return computeVisibility(currentView);
+  }, [currentView]);
+
+  // The plain items/connectors/rectangles/textBoxes arrays above stay
+  // complete: id lookups (panels, per-item hooks) must keep resolving
+  // entities on hidden layers. Only rendering and hit-testing consume the
+  // visible* variants — hidden entities unmount entirely, which is the
+  // layers perf win. When nothing is hidden the same array refs are returned
+  // so memoized consumers see no change.
+  const visibleItems = useMemo(() => {
+    if (visibility.hiddenLayerIds.size === 0) return items;
+
+    return items.filter((viewItem) => {
+      return !visibility.hiddenLayerIds.has(getEffectiveLayerId(viewItem));
+    });
+  }, [items, visibility]);
+
+  const visibleConnectors = useMemo(() => {
+    if (visibility.hiddenConnectorIds.size === 0) return connectors;
+
+    return connectors.filter((connector) => {
+      return !visibility.hiddenConnectorIds.has(connector.id);
+    });
+  }, [connectors, visibility]);
+
+  const visibleRectangles = useMemo(() => {
+    if (visibility.hiddenLayerIds.size === 0) return rectangles;
+
+    return rectangles.filter((rectangle) => {
+      return !visibility.hiddenLayerIds.has(getEffectiveLayerId(rectangle));
+    });
+  }, [rectangles, visibility]);
+
+  const visibleTextBoxes = useMemo(() => {
+    if (visibility.hiddenLayerIds.size === 0) return textBoxes;
+
+    return textBoxes.filter((textBox) => {
+      return !visibility.hiddenLayerIds.has(getEffectiveLayerId(textBox));
+    });
+  }, [textBoxes, visibility]);
 
   const getState = useCallback(() => {
     return {
@@ -649,6 +695,11 @@ export const useScene = () => {
     rectangles,
     textBoxes,
     layers,
+    visibility,
+    visibleItems,
+    visibleConnectors,
+    visibleRectangles,
+    visibleTextBoxes,
     currentView,
     createModelItem,
     updateModelItem,

@@ -55,7 +55,8 @@ export const usePanHandlers = () => {
 
       const itemAtTile = getItemAtTile({
         tile: mouse.position.tile,
-        scene
+        scene,
+        filter: 'VISIBLE_UNLOCKED'
       });
 
       return !itemAtTile;

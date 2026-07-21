@@ -67,7 +67,11 @@ const dragItems = (
       const newConnector = produce(connector, (draft) => {
         const anchor = getItemByIdOrThrow(connector.anchors, item.id);
 
-        const itemAtTile = getItemAtTile({ tile, scene });
+        const itemAtTile = getItemAtTile({
+          tile,
+          scene,
+          filter: 'VISIBLE_UNLOCKED'
+        });
 
         switch (itemAtTile?.type) {
           case 'ITEM':

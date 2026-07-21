@@ -38,6 +38,7 @@ import {
   toPx,
   getItemByIdOrThrow
 } from 'src/utils';
+import { getEffectiveLayerId } from './layers';
 import { useScene } from 'src/hooks/useScene';
 
 interface ScreenToIso {
@@ -441,17 +442,39 @@ export const getTextBoxEndTile = (textBox: TextBox, size: Size) => {
   });
 };
 
+// VISIBLE: hidden-layer entities don't hit-test (default).
+// VISIBLE_UNLOCKED: additionally, locked-layer entities are click-through —
+//   use for every user interaction (select, drag, context menu, anchoring).
+// ALL: physical tile occupancy — hidden entities still occupy their tiles so
+//   nothing gets placed on top of them (findNearestUnoccupiedTile).
+export type ItemAtTileFilter = 'VISIBLE' | 'VISIBLE_UNLOCKED' | 'ALL';
+
 interface GetItemAtTile {
   tile: Coords;
   scene: ReturnType<typeof useScene>;
+  filter?: ItemAtTileFilter;
 }
 
 export const getItemAtTile = ({
   tile,
-  scene
+  scene,
+  filter = 'VISIBLE'
 }: GetItemAtTile): ItemReference | null => {
-  const viewItem = scene.items.find((item) => {
-    return CoordsUtils.isEqual(item.tile, tile);
+  const useAll = filter === 'ALL';
+  const items = useAll ? scene.items : scene.visibleItems;
+  const textBoxes = useAll ? scene.textBoxes : scene.visibleTextBoxes;
+  const connectors = useAll ? scene.connectors : scene.visibleConnectors;
+  const rectangles = useAll ? scene.rectangles : scene.visibleRectangles;
+
+  const lockedLayerIds =
+    filter === 'VISIBLE_UNLOCKED' ? scene.visibility.lockedLayerIds : null;
+
+  const isInteractive = (entity: { layerId?: string }) => {
+    return !lockedLayerIds || !lockedLayerIds.has(getEffectiveLayerId(entity));
+  };
+
+  const viewItem = items.find((item) => {
+    return isInteractive(item) && CoordsUtils.isEqual(item.tile, tile);
   });
 
   if (viewItem) {
@@ -461,7 +484,9 @@ export const getItemAtTile = ({
     };
   }
 
-  const textBox = scene.textBoxes.find((tb) => {
+  const textBox = textBoxes.find((tb) => {
+    if (!isInteractive(tb)) return false;
+
     const textBoxTo = getTextBoxEndTile(tb, tb.size);
     const textBoxBounds = getBoundingBox([
       tb.tile,
@@ -484,7 +509,9 @@ export const getItemAtTile = ({
     };
   }
 
-  const connector = scene.connectors.find((con) => {
+  const connector = connectors.find((con) => {
+    if (!isInteractive(con)) return false;
+
     return con.path.tiles.find((pathTile) => {
       const globalPathTile = connectorPathTileToGlobal(
         pathTile,
@@ -502,8 +529,8 @@ export const getItemAtTile = ({
     };
   }
 
-  const rectangle = scene.rectangles.find(({ from, to }) => {
-    return isWithinBounds(tile, [from, to]);
+  const rectangle = rectangles.find((rect) => {
+    return isInteractive(rect) && isWithinBounds(tile, [rect.from, rect.to]);
   });
 
   if (rectangle) {

@@ -1,7 +1,13 @@
 import { Coords, Size, Scroll } from 'src/types';
 import { CoordsUtils, SizeUtils } from 'src/utils';
 import { PROJECTED_TILE_SIZE } from 'src/config';
-import { getGridSubset, isWithinBounds, screenToIso } from '../renderer';
+import type { useScene } from 'src/hooks/useScene';
+import {
+  getGridSubset,
+  getItemAtTile,
+  isWithinBounds,
+  screenToIso
+} from '../renderer';
 
 const getRendererSize = (tileSize: Size, zoom: number = 1): Size => {
   const projectedTileSize = SizeUtils.multiply(PROJECTED_TILE_SIZE, zoom);
@@ -123,5 +129,66 @@ describe('Tests renderer utils', () => {
     });
 
     expect(tile).toEqual({ x: 0, y: 10 });
+  });
+});
+
+describe('getItemAtTile() layer filters', () => {
+  const items = [
+    { id: 'node1', tile: { x: 0, y: 0 } },
+    { id: 'hidden1', tile: { x: 2, y: 2 }, layerId: 'hiddenLayer' },
+    { id: 'locked1', tile: { x: 4, y: 4 }, layerId: 'lockedLayer' }
+  ];
+
+  const scene = {
+    items,
+    visibleItems: items.filter((item) => {
+      return item.layerId !== 'hiddenLayer';
+    }),
+    textBoxes: [],
+    visibleTextBoxes: [],
+    connectors: [],
+    visibleConnectors: [],
+    rectangles: [],
+    visibleRectangles: [],
+    visibility: {
+      hiddenLayerIds: new Set(['hiddenLayer']),
+      lockedLayerIds: new Set(['lockedLayer']),
+      hiddenConnectorIds: new Set()
+    }
+  } as unknown as ReturnType<typeof useScene>;
+
+  test('VISIBLE (default) skips hidden items but finds locked ones', () => {
+    expect(getItemAtTile({ tile: { x: 0, y: 0 }, scene })).toEqual({
+      type: 'ITEM',
+      id: 'node1'
+    });
+    expect(getItemAtTile({ tile: { x: 2, y: 2 }, scene })).toBeNull();
+    expect(getItemAtTile({ tile: { x: 4, y: 4 }, scene })).toEqual({
+      type: 'ITEM',
+      id: 'locked1'
+    });
+  });
+
+  test('VISIBLE_UNLOCKED additionally skips locked items', () => {
+    expect(
+      getItemAtTile({
+        tile: { x: 4, y: 4 },
+        scene,
+        filter: 'VISIBLE_UNLOCKED'
+      })
+    ).toBeNull();
+    expect(
+      getItemAtTile({
+        tile: { x: 0, y: 0 },
+        scene,
+        filter: 'VISIBLE_UNLOCKED'
+      })
+    ).toEqual({ type: 'ITEM', id: 'node1' });
+  });
+
+  test('ALL finds hidden items (tile occupancy)', () => {
+    expect(getItemAtTile({ tile: { x: 2, y: 2 }, scene, filter: 'ALL' })).toEqual(
+      { type: 'ITEM', id: 'hidden1' }
+    );
   });
 });

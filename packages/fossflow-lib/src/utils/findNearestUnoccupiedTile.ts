@@ -15,7 +15,9 @@ export const findNearestUnoccupiedTile = (
   maxDistance: number = 10
 ): Coords | null => {
   // Check if the target tile itself is unoccupied
-  const itemAtTarget = getItemAtTile({ tile: targetTile, scene });
+  // 'ALL': hidden-layer items still occupy their tiles, so nothing is ever
+  // placed on top of a hidden node (no surprise overlap on unhide).
+  const itemAtTarget = getItemAtTile({ tile: targetTile, scene, filter: 'ALL' });
   if (!itemAtTarget || itemAtTarget.type !== 'ITEM') {
     return targetTile;
   }
@@ -49,7 +51,11 @@ export const findNearestUnoccupiedTile = (
         };
 
         // Check if this tile is within bounds and unoccupied
-        const itemAtTile = getItemAtTile({ tile: currentTile, scene });
+        const itemAtTile = getItemAtTile({
+          tile: currentTile,
+          scene,
+          filter: 'ALL'
+        });
         if (!itemAtTile || itemAtTile.type !== 'ITEM') {
           return currentTile;
         }
@@ -107,7 +113,11 @@ export const findNearestUnoccupiedTilesForGroup = (
               const checkKey = `${checkTile.x},${checkTile.y}`;
               
               if (!occupiedTiles.has(checkKey)) {
-                const itemAtTile = getItemAtTile({ tile: checkTile, scene });
+                const itemAtTile = getItemAtTile({
+                  tile: checkTile,
+                  scene,
+                  filter: 'ALL'
+                });
                 if (!itemAtTile || itemAtTile.type !== 'ITEM' || excludeIds.includes(itemAtTile.id)) {
                   foundTile = checkTile;
                   break;

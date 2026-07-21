@@ -11,7 +11,8 @@ export const PlaceIcon: ModeActions = {
     if (!uiState.mode.id) {
       const itemAtTile = getItemAtTile({
         tile: uiState.mouse.position.tile,
-        scene
+        scene,
+        filter: 'VISIBLE_UNLOCKED'
       });
 
       uiState.actions.setMode({

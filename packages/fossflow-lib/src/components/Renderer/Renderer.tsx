@@ -28,7 +28,14 @@ export const Renderer = ({ showGrid, backgroundColor }: RendererProps) => {
     return state.actions;
   });
   const { setInteractionsElement } = useInteractionManager();
-  const { items, rectangles, connectors, textBoxes } = useScene();
+  // Hidden-layer entities unmount entirely — that, not CSS hiding, is the
+  // layers perf lever (each node is a full DOM subtree).
+  const {
+    visibleItems,
+    visibleRectangles,
+    visibleConnectors,
+    visibleTextBoxes
+  } = useScene();
 
   useEffect(() => {
     if (!containerRef.current || !interactionsRef.current) return;
@@ -57,7 +64,7 @@ export const Renderer = ({ showGrid, backgroundColor }: RendererProps) => {
       }}
     >
       <SceneLayer>
-        <Rectangles rectangles={rectangles} />
+        <Rectangles rectangles={visibleRectangles} />
       </SceneLayer>
       <Box
         sx={{
@@ -76,13 +83,13 @@ export const Renderer = ({ showGrid, backgroundColor }: RendererProps) => {
         </SceneLayer>
       )}
       <SceneLayer>
-        <Connectors connectors={connectors} />
+        <Connectors connectors={visibleConnectors} />
       </SceneLayer>
       <SceneLayer>
-        <TextBoxes textBoxes={textBoxes} />
+        <TextBoxes textBoxes={visibleTextBoxes} />
       </SceneLayer>
       <SceneLayer>
-        <ConnectorLabels connectors={connectors} />
+        <ConnectorLabels connectors={visibleConnectors} />
       </SceneLayer>
       {enableDebugTools && (
         <SceneLayer>
@@ -101,7 +108,7 @@ export const Renderer = ({ showGrid, backgroundColor }: RendererProps) => {
         }}
       />
       <SceneLayer>
-        <Nodes nodes={items} />
+        <Nodes nodes={visibleItems} />
       </SceneLayer>
       <SceneLayer>
         <TransformControlsManager />

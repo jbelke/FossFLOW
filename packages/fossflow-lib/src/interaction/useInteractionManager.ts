@@ -359,7 +359,8 @@ export const useInteractionManager = () => {
 
     const itemAtTile = getItemAtTile({
       tile: uiState.mouse.position.tile,
-      scene
+      scene,
+      filter: 'VISIBLE_UNLOCKED'
     });
 
     if (itemAtTile) {
@@ -385,7 +386,8 @@ export const useInteractionManager = () => {
 
     const itemAtTile = getItemAtTile({
       tile: uiState.mouse.position.tile,
-      scene
+      scene,
+      filter: 'VISIBLE_UNLOCKED'
     });
 
     if (itemAtTile?.type === 'ITEM') {
