@@ -8,7 +8,11 @@ interface AddItemControls {
   type: 'ADD_ITEM';
 }
 
-export type ItemControls = ItemReference | AddItemControls;
+interface LayersControls {
+  type: 'LAYERS';
+}
+
+export type ItemControls = ItemReference | AddItemControls | LayersControls;
 
 export interface Mouse {
   position: {
@@ -164,6 +168,9 @@ export interface UiState {
   panSettings: PanSettings;
   clipboard: NodeClipboardEntry | null;
   renamingItemId: string | null;
+  // Newly created entities land on this layer; null means the base layer.
+  // Not part of undo history — creation sites re-validate via resolveLayerId.
+  activeLayerId: string | null;
 }
 
 export interface UiStateActions {
@@ -188,6 +195,7 @@ export interface UiStateActions {
   setPanSettings: (settings: PanSettings) => void;
   setClipboard: (clipboard: NodeClipboardEntry | null) => void;
   setRenamingItemId: (id: string | null) => void;
+  setActiveLayerId: (id: string | null) => void;
 }
 
 export type UiStateStore = UiState & {

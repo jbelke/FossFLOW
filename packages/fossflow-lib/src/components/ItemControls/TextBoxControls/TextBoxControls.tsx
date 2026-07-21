@@ -18,6 +18,7 @@ import { getIsoProjectionCss } from 'src/utils';
 import { useScene } from 'src/hooks/useScene';
 import { ControlsContainer } from '../components/ControlsContainer';
 import { Section } from '../components/Section';
+import { LayerSelect } from '../LayerControls/LayerSelect';
 import { DeleteButton } from '../components/DeleteButton';
 
 interface Props {
@@ -98,6 +99,10 @@ export const TextBoxControls = ({ id }: Props) => {
             </ToggleButton>
           </ToggleButtonGroup>
         </Section>
+        <LayerSelect
+          item={{ type: 'TEXTBOX', id: textBox.id }}
+          layerId={textBox.layerId}
+        />
         <Section>
           <Box>
             <DeleteButton

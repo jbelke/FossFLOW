@@ -6,6 +6,7 @@ import { NodeControls } from './NodeControls/NodeControls';
 import { ConnectorControls } from './ConnectorControls/ConnectorControls';
 import { TextBoxControls } from './TextBoxControls/TextBoxControls';
 import { RectangleControls } from './RectangleControls/RectangleControls';
+import { LayersPanel } from './LayerControls/LayersPanel';
 
 export const ItemControlsManager = () => {
   const itemControls = useUiStateStore((state) => {
@@ -24,6 +25,8 @@ export const ItemControlsManager = () => {
         return <RectangleControls key={itemControls.id} id={itemControls.id} />;
       case 'ADD_ITEM':
         return <IconSelectionControls />;
+      case 'LAYERS':
+        return <LayersPanel />;
       default:
         return null;
     }

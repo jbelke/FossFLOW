@@ -9,7 +9,8 @@ import {
   Title as TitleIcon,
   Undo as UndoIcon,
   Redo as RedoIcon,
-  Help as HelpIcon
+  Help as HelpIcon,
+  LayersOutlined as LayersIcon
 } from '@mui/icons-material';
 import {
   useUiStateStore,
@@ -20,11 +21,11 @@ import { UiElement } from 'src/components/UiElement/UiElement';
 import { useScene } from 'src/hooks/useScene';
 import { useHistory } from 'src/hooks/useHistory';
 import { TEXTBOX_DEFAULTS } from 'src/config';
-import { generateId } from 'src/utils';
+import { generateId, resolveLayerId } from 'src/utils';
 import { HOTKEY_PROFILES } from 'src/config/hotkeys';
 
 export const ToolMenu = () => {
-  const { createTextBox } = useScene();
+  const { createTextBox, currentView } = useScene();
   const { undo, redo, canUndo, canRedo } = useHistory();
   const mode = useUiStateStore((state) => {
     return state.mode;
@@ -37,6 +38,9 @@ export const ToolMenu = () => {
   const uiStateApi = useUiStateStoreApi();
   const hotkeyProfile = useUiStateStore((state) => {
     return state.hotkeyProfile;
+  });
+  const isLayersPanelOpen = useUiStateStore((state) => {
+    return state.itemControls?.type === 'LAYERS';
   });
 
   const hotkeys = HOTKEY_PROFILES[hotkeyProfile];
@@ -51,11 +55,14 @@ export const ToolMenu = () => {
 
   const createTextBoxProxy = useCallback(() => {
     const textBoxId = generateId();
+    const { mouse, activeLayerId } = uiStateApi.getState();
+    const layerId = resolveLayerId(currentView, activeLayerId);
 
     createTextBox({
       ...TEXTBOX_DEFAULTS,
       id: textBoxId,
-      tile: uiStateApi.getState().mouse.position.tile
+      tile: mouse.position.tile,
+      ...(layerId ? { layerId } : {})
     });
 
     uiStateStoreActions.setMode({
@@ -63,7 +70,7 @@ export const ToolMenu = () => {
       showCursor: false,
       id: textBoxId
     });
-  }, [uiStateStoreActions, createTextBox, uiStateApi]);
+  }, [uiStateStoreActions, createTextBox, currentView, uiStateApi]);
 
   return (
     <UiElement>
@@ -152,6 +159,19 @@ export const ToolMenu = () => {
           Icon={<TitleIcon />}
           onClick={createTextBoxProxy}
           isActive={mode.type === 'TEXTBOX'}
+        />
+
+        <Divider orientation="vertical" flexItem />
+
+        <IconButton
+          name="Layers"
+          Icon={<LayersIcon />}
+          onClick={() => {
+            uiStateStoreActions.setItemControls(
+              isLayersPanelOpen ? null : { type: 'LAYERS' }
+            );
+          }}
+          isActive={isLayersPanelOpen}
         />
       </Stack>
     </UiElement>

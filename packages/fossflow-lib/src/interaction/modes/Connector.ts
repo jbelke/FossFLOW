@@ -4,6 +4,7 @@ import {
   getItemAtTile,
   getItemByIdOrThrow,
   hasMovedTile,
+  resolveLayerId,
   setWindowCursor
 } from 'src/utils';
 import { ModeActions, Connector as ConnectorI } from 'src/types';
@@ -54,10 +55,12 @@ export const Connector: ModeActions = {
   mousedown: ({ uiState, scene, isRendererInteraction }) => {
     if (uiState.mode.type !== 'CONNECTOR' || !isRendererInteraction) return;
 
+    const layerId = resolveLayerId(scene.currentView, uiState.activeLayerId);
     const newConnector: ConnectorI = {
       id: generateId(),
       color: scene.colors[0].id,
-      anchors: []
+      anchors: [],
+      ...(layerId ? { layerId } : {})
     };
 
     const itemAtTile = getItemAtTile({

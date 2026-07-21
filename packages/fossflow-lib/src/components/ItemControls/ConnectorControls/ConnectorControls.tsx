@@ -18,6 +18,7 @@ import { Close as CloseIcon } from '@mui/icons-material';
 import { ControlsContainer } from '../components/ControlsContainer';
 import { Section } from '../components/Section';
 import { DeleteButton } from '../components/DeleteButton';
+import { LayerSelect } from '../LayerControls/LayerSelect';
 
 interface Props {
   id: string;
@@ -73,6 +74,10 @@ export const ConnectorControls = ({ id }: Props) => {
             activeColor={connector.color}
           />
         </Section>
+        <LayerSelect
+          item={{ type: 'CONNECTOR', id: connector.id }}
+          layerId={connector.layerId}
+        />
         <Section title="Width">
           <Slider
             marks

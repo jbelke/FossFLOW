@@ -36,6 +36,7 @@ const initialState = () => {
       panSettings: DEFAULT_PAN_SETTINGS,
       clipboard: null,
       renamingItemId: null,
+      activeLayerId: null,
       actions: {
         setClipboard: (clipboard) => {
           set({ clipboard });
@@ -43,8 +44,19 @@ const initialState = () => {
         setRenamingItemId: (renamingItemId) => {
           set({ renamingItemId });
         },
+        setActiveLayerId: (activeLayerId) => {
+          set({ activeLayerId });
+        },
         setView: (view) => {
-          set({ view });
+          // Layers are per-view, so the active layer can't survive a switch to
+          // a DIFFERENT view. Same-view setView calls must keep it: the app
+          // reloads initialData (and re-runs changeView) after every model
+          // update, and that must not wipe the user's active layer.
+          if (get().view === view) {
+            set({ view });
+          } else {
+            set({ view, activeLayerId: null });
+          }
         },
         setMainMenuOptions: (mainMenuOptions) => {
           set({ mainMenuOptions });
@@ -64,6 +76,7 @@ const initialState = () => {
             },
             itemControls: null,
             renamingItemId: null,
+            activeLayerId: null,
             zoom: 1
           });
         },

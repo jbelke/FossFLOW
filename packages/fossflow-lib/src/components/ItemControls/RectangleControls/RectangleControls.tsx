@@ -8,6 +8,7 @@ import { Close as CloseIcon } from '@mui/icons-material';
 import { ControlsContainer } from '../components/ControlsContainer';
 import { Section } from '../components/Section';
 import { DeleteButton } from '../components/DeleteButton';
+import { LayerSelect } from '../LayerControls/LayerSelect';
 
 interface Props {
   id: string;
@@ -52,6 +53,10 @@ export const RectangleControls = ({ id }: Props) => {
             activeColor={rectangle.color}
           />
         </Section>
+        <LayerSelect
+          item={{ type: 'RECTANGLE', id: rectangle.id }}
+          layerId={rectangle.layerId}
+        />
         <Section>
           <Box>
             <DeleteButton

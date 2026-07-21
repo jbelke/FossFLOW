@@ -14,6 +14,7 @@ import { useUiStateStore } from 'src/stores/uiStateStore';
 import { useModelItem } from 'src/hooks/useModelItem';
 import { ControlsContainer } from '../components/ControlsContainer';
 import { Icons } from '../IconSelectionControls/Icons';
+import { LayerSelect } from '../LayerControls/LayerSelect';
 import { NodeSettings } from './NodeSettings/NodeSettings';
 import { Section } from '../components/Section';
 import { QuickIconSelector } from './QuickIconSelector';
@@ -125,6 +126,12 @@ export const NodeControls = ({ id }: Props) => {
           </Stack>
         </Section>
       </Box>
+      {mode === 'SETTINGS' && (
+        <LayerSelect
+          item={{ type: 'ITEM', id: viewItem.id }}
+          layerId={viewItem.layerId}
+        />
+      )}
       {mode === 'SETTINGS' && (
         <NodeSettings
           key={viewItem.id}

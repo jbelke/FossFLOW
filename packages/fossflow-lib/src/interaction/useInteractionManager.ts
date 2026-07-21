@@ -6,7 +6,12 @@ import {
 } from 'src/stores/uiStateStore';
 import { ModeActions, State, SlimMouseEvent, Coords } from 'src/types';
 import { DialogTypeEnum } from 'src/types/ui';
-import { getMouse, getItemAtTile, generateId } from 'src/utils';
+import {
+  getMouse,
+  getItemAtTile,
+  generateId,
+  resolveLayerId
+} from 'src/utils';
 import { useResizeObserver } from 'src/hooks/useResizeObserver';
 import { useScene } from 'src/hooks/useScene';
 import { useHistory } from 'src/hooks/useHistory';
@@ -255,10 +260,15 @@ export const useInteractionManager = () => {
       } else if (hotkeyMapping.text && key === hotkeyMapping.text) {
         e.preventDefault();
         const textBoxId = generateId();
+        const layerId = resolveLayerId(
+          scene.currentView,
+          uiState.activeLayerId
+        );
         createTextBox({
           ...TEXTBOX_DEFAULTS,
           id: textBoxId,
-          tile: uiState.mouse.position.tile
+          tile: uiState.mouse.position.tile,
+          ...(layerId ? { layerId } : {})
         });
         uiState.actions.setMode({
           type: 'TEXTBOX',

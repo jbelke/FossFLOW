@@ -2,7 +2,12 @@ import { useCallback } from 'react';
 import { Coords, ModelItem, ViewItem, NodeClipboardEntry } from 'src/types';
 import { useModelStore } from 'src/stores/modelStore';
 import { useUiStateStore } from 'src/stores/uiStateStore';
-import { generateId, getItemById, findNearestUnoccupiedTile } from 'src/utils';
+import {
+  generateId,
+  getItemById,
+  findNearestUnoccupiedTile,
+  resolveLayerId
+} from 'src/utils';
 import { VIEW_ITEM_DEFAULTS } from 'src/config';
 import { useScene } from './useScene';
 
@@ -24,7 +29,8 @@ const detachNode = (parts: NodeParts): NodeClipboardEntry => {
       icon: parts.modelItem.icon
     },
     viewItem: {
-      labelHeight: parts.viewItem.labelHeight
+      labelHeight: parts.viewItem.labelHeight,
+      layerId: parts.viewItem.layerId
     }
   };
 };
@@ -49,6 +55,9 @@ export const useNodeActions = () => {
   });
   const clipboard = useUiStateStore((state) => {
     return state.clipboard;
+  });
+  const activeLayerId = useUiStateStore((state) => {
+    return state.activeLayerId;
   });
 
   const getNodeParts = useCallback(
@@ -79,14 +88,28 @@ export const useNodeActions = () => {
 
       const id = generateId();
 
+      // A carried layerId (duplicate/paste) wins, but may be stale — the
+      // source layer can have been deleted since the copy. Fall back to the
+      // active layer, then to base (no key at all).
+      const { layerId: carriedLayerId, ...viewItemRest } = viewItem;
+      const layerId =
+        resolveLayerId(scene.currentView, carriedLayerId ?? null) ??
+        resolveLayerId(scene.currentView, activeLayerId);
+
       scene.placeIcon({
         modelItem: { ...modelItem, id },
-        viewItem: { ...VIEW_ITEM_DEFAULTS, ...viewItem, id, tile: targetTile }
+        viewItem: {
+          ...VIEW_ITEM_DEFAULTS,
+          ...viewItemRest,
+          id,
+          tile: targetTile,
+          ...(layerId ? { layerId } : {})
+        }
       });
 
       return id;
     },
-    [scene]
+    [scene, activeLayerId]
   );
 
   const createNode = useCallback(

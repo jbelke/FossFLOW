@@ -1,6 +1,11 @@
 import { produce } from 'immer';
 import { ModeActions } from 'src/types';
-import { generateId, getItemAtTile, findNearestUnoccupiedTile } from 'src/utils';
+import {
+  generateId,
+  getItemAtTile,
+  findNearestUnoccupiedTile,
+  resolveLayerId
+} from 'src/utils';
 import { VIEW_ITEM_DEFAULTS } from 'src/config';
 
 export const PlaceIcon: ModeActions = {
@@ -37,6 +42,10 @@ export const PlaceIcon: ModeActions = {
       // Place the icon on the nearest unoccupied tile
       if (targetTile) {
         const modelItemId = generateId();
+        const layerId = resolveLayerId(
+          scene.currentView,
+          uiState.activeLayerId
+        );
 
         scene.placeIcon({
           modelItem: {
@@ -47,7 +56,8 @@ export const PlaceIcon: ModeActions = {
           viewItem: {
             ...VIEW_ITEM_DEFAULTS,
             id: modelItemId,
-            tile: targetTile
+            tile: targetTile,
+            ...(layerId ? { layerId } : {})
           }
         });
       }
