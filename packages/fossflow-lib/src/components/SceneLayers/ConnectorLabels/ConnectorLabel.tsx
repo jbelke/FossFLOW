@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { Box, Typography } from '@mui/material';
-import { useScene } from 'src/hooks/useScene';
+import type { useScene } from 'src/hooks/useScene';
 import { connectorPathTileToGlobal, getTilePosition } from 'src/utils';
 import { PROJECTED_TILE_SIZE } from 'src/config';
 import { Label } from 'src/components/Label/Label';
@@ -9,7 +9,7 @@ interface Props {
   connector: ReturnType<typeof useScene>['connectors'][0];
 }
 
-export const ConnectorLabel = ({ connector }: Props) => {
+export const ConnectorLabel = memo(({ connector }: Props) => {
   const labelPosition = useMemo(() => {
     const tileIndex = Math.floor(connector.path.tiles.length / 2);
     const tile = connector.path.tiles[tileIndex];
@@ -43,4 +43,6 @@ export const ConnectorLabel = ({ connector }: Props) => {
       </Label>
     </Box>
   );
-};
+});
+
+ConnectorLabel.displayName = 'ConnectorLabel';

@@ -1,54 +1,47 @@
-import React, { useMemo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { useTheme, Box } from '@mui/material';
 import { UNPROJECTED_TILE_SIZE } from 'src/config';
 import {
   getAnchorTile,
   getColorVariant,
-  getConnectorDirectionIcon
+  getConnectorDirectionIcon,
+  getItemById
 } from 'src/utils';
 import { Circle } from 'src/components/Circle/Circle';
 import { Svg } from 'src/components/Svg/Svg';
 import { useIsoProjection } from 'src/hooks/useIsoProjection';
-import { useConnector } from 'src/hooks/useConnector';
-import { useScene } from 'src/hooks/useScene';
+import { useModelStore } from 'src/stores/modelStore';
+import { useUiStateStore } from 'src/stores/uiStateStore';
+import type { useScene } from 'src/hooks/useScene';
 import { useColor } from 'src/hooks/useColor';
 
+type MergedConnector = ReturnType<typeof useScene>['connectors'][0];
+
 interface Props {
-  connector: ReturnType<typeof useScene>['connectors'][0];
+  connector: MergedConnector;
   isSelected?: boolean;
 }
 
-export const Connector = ({ connector: _connector, isSelected }: Props) => {
+// Anchor handles for the selected connector. Mounted only while selected, so
+// a single connector at a time pays the current-view subscription needed to
+// resolve anchor positions.
+const SelectedConnectorAnchors = ({
+  connector,
+  drawOffset
+}: {
+  connector: MergedConnector;
+  drawOffset: { x: number; y: number };
+}) => {
   const theme = useTheme();
-  const color = useColor(_connector.color);
-  const { currentView } = useScene();
-  const connector = useConnector(_connector.id);
-
-  if (!connector || !color) {
-    return null;
-  }
-
-  const { css, pxSize } = useIsoProjection({
-    ...connector.path.rectangle
+  const currentViewId = useUiStateStore((state) => {
+    return state.view;
+  });
+  const currentView = useModelStore((state) => {
+    return getItemById(state.views, currentViewId)?.value ?? state.views[0];
   });
 
-  const drawOffset = useMemo(() => {
-    return {
-      x: UNPROJECTED_TILE_SIZE / 2,
-      y: UNPROJECTED_TILE_SIZE / 2
-    };
-  }, []);
-
-  const pathString = useMemo(() => {
-    return connector.path.tiles.reduce((acc, tile) => {
-      return `${acc} ${tile.x * UNPROJECTED_TILE_SIZE + drawOffset.x},${
-        tile.y * UNPROJECTED_TILE_SIZE + drawOffset.y
-      }`;
-    }, '');
-  }, [connector.path.tiles, drawOffset]);
-
   const anchorPositions = useMemo(() => {
-    if (!isSelected) return [];
+    if (!currentView) return [];
 
     return connector.anchors.map((anchor) => {
       const position = getAnchorTile(anchor, currentView);
@@ -65,17 +58,69 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
           drawOffset.y
       };
     });
-  }, [
-    currentView,
-    connector.path.rectangle,
-    connector.anchors,
-    drawOffset,
-    isSelected
-  ]);
+  }, [currentView, connector.path.rectangle, connector.anchors, drawOffset]);
+
+  return (
+    <>
+      {anchorPositions.map((anchor) => {
+        return (
+          <g key={anchor.id}>
+            <Circle
+              tile={anchor}
+              radius={18}
+              fill={theme.customVars.customPalette.diagramBg}
+              fillOpacity={0.7}
+            />
+            <Circle
+              tile={anchor}
+              radius={12}
+              stroke={theme.palette.text.primary}
+              fill={theme.customVars.customPalette.diagramBg}
+              strokeWidth={6}
+            />
+          </g>
+        );
+      })}
+    </>
+  );
+};
+
+// Memoized: the merged connector prop is identity-stable (per-item merge
+// cache in useScene) unless this connector actually changed. All hooks run
+// before the early return — the previous version returned above its hooks,
+// which crashes when a connector's scene entry briefly disappears.
+export const Connector = memo(({ connector, isSelected }: Props) => {
+  const theme = useTheme();
+  const color = useColor(connector.color);
+  const hasPath = Boolean(connector.path);
+
+  const { css, pxSize } = useIsoProjection({
+    from: connector.path?.rectangle?.from ?? { x: 0, y: 0 },
+    to: connector.path?.rectangle?.to ?? { x: 0, y: 0 }
+  });
+
+  const drawOffset = useMemo(() => {
+    return {
+      x: UNPROJECTED_TILE_SIZE / 2,
+      y: UNPROJECTED_TILE_SIZE / 2
+    };
+  }, []);
+
+  const pathString = useMemo(() => {
+    if (!hasPath) return '';
+
+    return connector.path.tiles.reduce((acc, tile) => {
+      return `${acc} ${tile.x * UNPROJECTED_TILE_SIZE + drawOffset.x},${
+        tile.y * UNPROJECTED_TILE_SIZE + drawOffset.y
+      }`;
+    }, '');
+  }, [hasPath, connector.path?.tiles, drawOffset]);
 
   const directionIcon = useMemo(() => {
+    if (!hasPath) return null;
+
     return getConnectorDirectionIcon(connector.path.tiles);
-  }, [connector.path.tiles]);
+  }, [hasPath, connector.path?.tiles]);
 
   const connectorWidthPx = useMemo(() => {
     return (UNPROJECTED_TILE_SIZE / 100) * connector.width;
@@ -92,6 +137,10 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
         return 'none';
     }
   }, [connector.style, connectorWidthPx]);
+
+  if (!hasPath || !color) {
+    return null;
+  }
 
   return (
     <Box style={css}>
@@ -124,25 +173,12 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
           fill="none"
         />
 
-        {anchorPositions.map((anchor) => {
-          return (
-            <g key={anchor.id}>
-              <Circle
-                tile={anchor}
-                radius={18}
-                fill={theme.customVars.customPalette.diagramBg}
-                fillOpacity={0.7}
-              />
-              <Circle
-                tile={anchor}
-                radius={12}
-                stroke={theme.palette.text.primary}
-                fill={theme.customVars.customPalette.diagramBg}
-                strokeWidth={6}
-              />
-            </g>
-          );
-        })}
+        {isSelected && (
+          <SelectedConnectorAnchors
+            connector={connector}
+            drawOffset={drawOffset}
+          />
+        )}
 
         {directionIcon && connector.showArrow !== false && (
           <g transform={`translate(${directionIcon.x}, ${directionIcon.y})`}>
@@ -159,4 +195,6 @@ export const Connector = ({ connector: _connector, isSelected }: Props) => {
       </Svg>
     </Box>
   );
-};
+});
+
+Connector.displayName = 'Connector';

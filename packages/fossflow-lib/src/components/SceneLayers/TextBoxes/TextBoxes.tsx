@@ -1,12 +1,12 @@
-import React from 'react';
-import { useScene } from 'src/hooks/useScene';
+import React, { memo } from 'react';
+import type { useScene } from 'src/hooks/useScene';
 import { TextBox } from './TextBox';
 
 interface Props {
   textBoxes: ReturnType<typeof useScene>['textBoxes'];
 }
 
-export const TextBoxes = ({ textBoxes }: Props) => {
+export const TextBoxes = memo(({ textBoxes }: Props) => {
   return (
     <>
       {[...textBoxes].reverse().map((textBox) => {
@@ -14,4 +14,6 @@ export const TextBoxes = ({ textBoxes }: Props) => {
       })}
     </>
   );
-};
+});
+
+TextBoxes.displayName = 'TextBoxes';

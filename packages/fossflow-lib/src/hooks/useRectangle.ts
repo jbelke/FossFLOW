@@ -1,14 +1,27 @@
 import { useMemo } from 'react';
 import { getItemById } from 'src/utils';
-import { useScene } from 'src/hooks/useScene';
+import { RECTANGLE_DEFAULTS } from 'src/config';
+import { useModelStore } from 'src/stores/modelStore';
+import { useUiStateStore } from 'src/stores/uiStateStore';
 
 export const useRectangle = (id: string) => {
-  const { rectangles } = useScene();
+  const currentViewId = useUiStateStore((state) => {
+    return state.view;
+  });
+  const viewRectangle = useModelStore((state) => {
+    const view =
+      getItemById(state.views, currentViewId)?.value ?? state.views[0];
 
-  const rectangle = useMemo(() => {
-    const item = getItemById(rectangles, id);
-    return item ? item.value : null;
-  }, [rectangles, id]);
+    if (!view?.rectangles) return null;
+    return getItemById(view.rectangles, id)?.value ?? null;
+  });
 
-  return rectangle;
+  return useMemo(() => {
+    if (!viewRectangle) return null;
+
+    return {
+      ...RECTANGLE_DEFAULTS,
+      ...viewRectangle
+    };
+  }, [viewRectangle]);
 };

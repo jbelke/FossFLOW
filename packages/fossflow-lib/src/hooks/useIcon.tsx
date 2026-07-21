@@ -1,22 +1,36 @@
 import React, { useMemo, useEffect } from 'react';
 import { useModelStore } from 'src/stores/modelStore';
-import { getItemById } from 'src/utils';
+import { Icon, Icons } from 'src/types';
 import { IsometricIcon } from 'src/components/SceneLayers/Nodes/Node/IconTypes/IsometricIcon';
 import { NonIsometricIcon } from 'src/components/SceneLayers/Nodes/Node/IconTypes/NonIsometricIcon';
 import { DEFAULT_ICON } from 'src/config';
 
+// Icon packs run to 1000+ entries and every node resolves its icon on every
+// model-store notification, so index by array identity instead of scanning.
+const iconIndexCache = new WeakMap<Icons, Map<string, Icon>>();
+
+const getIconFromIndex = (icons: Icons, id: string): Icon | undefined => {
+  let index = iconIndexCache.get(icons);
+
+  if (!index) {
+    index = new Map(
+      icons.map((icon) => {
+        return [icon.id, icon];
+      })
+    );
+    iconIndexCache.set(icons, index);
+  }
+
+  return index.get(id);
+};
+
 export const useIcon = (id: string | undefined) => {
   const [hasLoaded, setHasLoaded] = React.useState(false);
-  const icons = useModelStore((state) => {
-    return state.icons;
-  });
-
-  const icon = useMemo(() => {
+  const icon = useModelStore((state) => {
     if (!id) return DEFAULT_ICON;
 
-    const item = getItemById(icons, id);
-    return item ? item.value : DEFAULT_ICON;
-  }, [icons, id]);
+    return getIconFromIndex(state.icons, id) ?? DEFAULT_ICON;
+  });
 
   useEffect(() => {
     setHasLoaded(false);

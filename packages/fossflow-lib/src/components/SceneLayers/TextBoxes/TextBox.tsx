@@ -1,15 +1,17 @@
-import React, { useMemo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { Box, Typography } from '@mui/material';
 import { toPx, CoordsUtils } from 'src/utils';
 import { useIsoProjection } from 'src/hooks/useIsoProjection';
 import { useTextBoxProps } from 'src/hooks/useTextBoxProps';
-import { useScene } from 'src/hooks/useScene';
+import type { useScene } from 'src/hooks/useScene';
 
 interface Props {
   textBox: ReturnType<typeof useScene>['textBoxes'][0];
 }
 
-export const TextBox = ({ textBox }: Props) => {
+// Memoized: the merged textBox prop is identity-stable (per-item merge cache
+// in useScene) unless this text box actually changed.
+export const TextBox = memo(({ textBox }: Props) => {
   const { paddingX, fontProps } = useTextBoxProps(textBox);
 
   const to = useMemo(() => {
@@ -49,4 +51,6 @@ export const TextBox = ({ textBox }: Props) => {
       </Box>
     </Box>
   );
-};
+});
+
+TextBox.displayName = 'TextBox';

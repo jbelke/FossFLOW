@@ -7,11 +7,13 @@ import {
   Rectangle,
   ItemReference,
   Layer,
-  LayerOrderingAction
+  LayerOrderingAction,
+  SceneConnector,
+  SceneTextBox
 } from 'src/types';
 import { useUiStateStore } from 'src/stores/uiStateStore';
-import { useModelStore } from 'src/stores/modelStore';
-import { useSceneStore } from 'src/stores/sceneStore';
+import { useModelStore, useModelStoreApi } from 'src/stores/modelStore';
+import { useSceneStore, useSceneStoreApi } from 'src/stores/sceneStore';
 import * as reducers from 'src/stores/reducers';
 import type { State } from 'src/stores/reducers/types';
 import {
@@ -25,21 +27,71 @@ import {
   TEXTBOX_DEFAULTS
 } from 'src/config';
 
+// Subscriptions here are slice-level on purpose: subscribing to the whole
+// stores made every mutation (and every history push) re-render every
+// useScene consumer. State slices are selected narrowly; mutations read the
+// full stores non-reactively via the store APIs at call time.
 export const useScene = () => {
-  const model = useModelStore((state) => {
-    return state;
+  const views = useModelStore((state) => {
+    return state.views;
   });
-  const scene = useSceneStore((state) => {
-    return state;
+  const modelColors = useModelStore((state) => {
+    return state.colors;
   });
+  const modelActions = useModelStore((state) => {
+    return state.actions;
+  });
+  const sceneConnectors = useSceneStore((state) => {
+    return state.connectors;
+  });
+  const sceneTextBoxes = useSceneStore((state) => {
+    return state.textBoxes;
+  });
+  const sceneActions = useSceneStore((state) => {
+    return state.actions;
+  });
+  const modelApi = useModelStoreApi();
+  const sceneApi = useSceneStoreApi();
   const currentViewId = useUiStateStore((state) => {
     return state.view;
   });
   const transactionInProgress = useRef(false);
+  // Per-item merge caches: a merged entity keeps its object identity unless
+  // its own view record or scene record changed, so memoized item components
+  // can bail out when a sibling changes.
+  const connectorCacheRef = useRef(
+    new Map<
+      string,
+      {
+        viewRef: Connector;
+        sceneRef: SceneConnector | undefined;
+        merged: typeof CONNECTOR_DEFAULTS & Connector & SceneConnector;
+      }
+    >()
+  );
+  const textBoxCacheRef = useRef(
+    new Map<
+      string,
+      {
+        viewRef: TextBox;
+        sceneRef: SceneTextBox | undefined;
+        merged: typeof TEXTBOX_DEFAULTS & TextBox & SceneTextBox;
+      }
+    >()
+  );
+  const rectangleCacheRef = useRef(
+    new Map<
+      string,
+      {
+        viewRef: Rectangle;
+        merged: typeof RECTANGLE_DEFAULTS & Rectangle;
+      }
+    >()
+  );
 
   const currentView = useMemo(() => {
     // Handle case where view doesn't exist yet or stores aren't initialized
-    if (!model?.views || !currentViewId) {
+    if (!views || !currentViewId) {
       return {
         id: '',
         name: 'Default View',
@@ -51,12 +103,12 @@ export const useScene = () => {
     }
 
     try {
-      return getItemByIdOrThrow(model.views, currentViewId).value;
+      return getItemByIdOrThrow(views, currentViewId).value;
     } catch (error) {
       // console.warn(`View "${currentViewId}" not found, using fallback`);
       // Return first available view or empty view
       return (
-        model.views[0] || {
+        views[0] || {
           id: currentViewId,
           name: 'Default View',
           items: [],
@@ -66,48 +118,95 @@ export const useScene = () => {
         }
       );
     }
-  }, [currentViewId, model?.views]);
+  }, [currentViewId, views]);
 
   const items = useMemo(() => {
     return currentView.items ?? [];
   }, [currentView.items]);
 
   const colors = useMemo(() => {
-    return model?.colors ?? [];
-  }, [model?.colors]);
+    return modelColors ?? [];
+  }, [modelColors]);
 
   const connectors = useMemo(() => {
-    return (currentView.connectors ?? []).map((connector) => {
-      const sceneConnector = scene?.connectors?.[connector.id];
+    const cache = connectorCacheRef.current;
 
-      return {
+    return (currentView.connectors ?? []).map((connector) => {
+      const sceneConnector = sceneConnectors?.[connector.id];
+      const cached = cache.get(connector.id);
+
+      if (
+        cached &&
+        cached.viewRef === connector &&
+        cached.sceneRef === sceneConnector
+      ) {
+        return cached.merged;
+      }
+
+      const merged = {
         ...CONNECTOR_DEFAULTS,
         ...connector,
         ...sceneConnector
       };
+
+      cache.set(connector.id, {
+        viewRef: connector,
+        sceneRef: sceneConnector,
+        merged
+      });
+      return merged;
     });
-  }, [currentView.connectors, scene?.connectors]);
+  }, [currentView.connectors, sceneConnectors]);
 
   const rectangles = useMemo(() => {
+    const cache = rectangleCacheRef.current;
+
     return (currentView.rectangles ?? []).map((rectangle) => {
-      return {
+      const cached = cache.get(rectangle.id);
+
+      if (cached && cached.viewRef === rectangle) {
+        return cached.merged;
+      }
+
+      const merged = {
         ...RECTANGLE_DEFAULTS,
         ...rectangle
       };
+
+      cache.set(rectangle.id, { viewRef: rectangle, merged });
+      return merged;
     });
   }, [currentView.rectangles]);
 
   const textBoxes = useMemo(() => {
-    return (currentView.textBoxes ?? []).map((textBox) => {
-      const sceneTextBox = scene?.textBoxes?.[textBox.id];
+    const cache = textBoxCacheRef.current;
 
-      return {
+    return (currentView.textBoxes ?? []).map((textBox) => {
+      const sceneTextBox = sceneTextBoxes?.[textBox.id];
+      const cached = cache.get(textBox.id);
+
+      if (
+        cached &&
+        cached.viewRef === textBox &&
+        cached.sceneRef === sceneTextBox
+      ) {
+        return cached.merged;
+      }
+
+      const merged = {
         ...TEXTBOX_DEFAULTS,
         ...textBox,
         ...sceneTextBox
       };
+
+      cache.set(textBox.id, {
+        viewRef: textBox,
+        sceneRef: sceneTextBox,
+        merged
+      });
+      return merged;
     });
-  }, [currentView.textBoxes, scene?.textBoxes]);
+  }, [currentView.textBoxes, sceneTextBoxes]);
 
   const layers = useMemo(() => {
     return currentView.layers ?? [];
@@ -155,32 +254,35 @@ export const useScene = () => {
     });
   }, [textBoxes, visibility]);
 
+  // Reads the stores non-reactively, so this callback (and every mutation
+  // callback built on it) keeps a stable identity across renders.
   const getState = useCallback(() => {
+    const modelState = modelApi.getState();
+    const sceneState = sceneApi.getState();
+
     return {
       model: {
-        version: model?.version ?? '',
-        title: model?.title ?? '',
-        description: model?.description,
-        colors: model?.colors ?? [],
-        icons: model?.icons ?? [],
-        items: model?.items ?? [],
-        views: model?.views ?? []
+        version: modelState.version ?? '',
+        title: modelState.title ?? '',
+        description: modelState.description,
+        colors: modelState.colors ?? [],
+        icons: modelState.icons ?? [],
+        items: modelState.items ?? [],
+        views: modelState.views ?? []
       },
       scene: {
-        connectors: scene?.connectors ?? {},
-        textBoxes: scene?.textBoxes ?? {}
+        connectors: sceneState.connectors ?? {},
+        textBoxes: sceneState.textBoxes ?? {}
       }
     };
-  }, [model, scene]);
+  }, [modelApi, sceneApi]);
 
   const setState = useCallback(
     (newState: State) => {
-      if (model?.actions?.set && scene?.actions?.set) {
-        model.actions.set(newState.model, true); // Skip history since we're managing it here
-        scene.actions.set(newState.scene, true); // Skip history since we're managing it here
-      }
+      modelActions.set(newState.model, true); // Skip history since we're managing it here
+      sceneActions.set(newState.scene, true); // Skip history since we're managing it here
     },
-    [model?.actions, scene?.actions]
+    [modelActions, sceneActions]
   );
 
   const saveToHistoryBeforeChange = useCallback(() => {
@@ -189,14 +291,12 @@ export const useScene = () => {
       return;
     }
 
-    model?.actions?.saveToHistory?.();
-    scene?.actions?.saveToHistory?.();
-  }, [model?.actions, scene?.actions]);
+    modelActions.saveToHistory();
+    sceneActions.saveToHistory();
+  }, [modelActions, sceneActions]);
 
   const createModelItem = useCallback(
     (newModelItem: ModelItem) => {
-      if (!model?.actions || !scene?.actions) return getState();
-
       if (!transactionInProgress.current) {
         saveToHistoryBeforeChange();
       }
@@ -209,15 +309,13 @@ export const useScene = () => {
       getState,
       setState,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const updateModelItem = useCallback(
     (id: string, updates: Partial<ModelItem>) => {
-      if (!model?.actions || !scene?.actions) return;
-
       saveToHistoryBeforeChange();
       const newState = reducers.updateModelItem(id, updates, getState());
       setState(newState);
@@ -226,15 +324,13 @@ export const useScene = () => {
       getState,
       setState,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const deleteModelItem = useCallback(
     (id: string) => {
-      if (!model?.actions || !scene?.actions) return;
-
       saveToHistoryBeforeChange();
       const newState = reducers.deleteModelItem(id, getState());
       setState(newState);
@@ -243,14 +339,14 @@ export const useScene = () => {
       getState,
       setState,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const createViewItem = useCallback(
     (newViewItem: ViewItem, currentState?: State) => {
-      if (!model?.actions || !scene?.actions || !currentViewId) return;
+      if (!currentViewId) return;
 
       if (!transactionInProgress.current) {
         saveToHistoryBeforeChange();
@@ -272,14 +368,14 @@ export const useScene = () => {
       setState,
       currentViewId,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const updateViewItem = useCallback(
     (id: string, updates: Partial<ViewItem>) => {
-      if (!model?.actions || !scene?.actions || !currentViewId) return;
+      if (!currentViewId) return;
 
       saveToHistoryBeforeChange();
       const newState = reducers.view({
@@ -294,14 +390,14 @@ export const useScene = () => {
       setState,
       currentViewId,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const deleteViewItem = useCallback(
     (id: string) => {
-      if (!model?.actions || !scene?.actions || !currentViewId) return;
+      if (!currentViewId) return;
 
       saveToHistoryBeforeChange();
       const newState = reducers.view({
@@ -316,14 +412,14 @@ export const useScene = () => {
       setState,
       currentViewId,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const createConnector = useCallback(
     (newConnector: Connector) => {
-      if (!model?.actions || !scene?.actions || !currentViewId) return;
+      if (!currentViewId) return;
 
       saveToHistoryBeforeChange();
       const newState = reducers.view({
@@ -338,14 +434,14 @@ export const useScene = () => {
       setState,
       currentViewId,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const updateConnector = useCallback(
     (id: string, updates: Partial<Connector>) => {
-      if (!model?.actions || !scene?.actions || !currentViewId) return;
+      if (!currentViewId) return;
 
       saveToHistoryBeforeChange();
       const newState = reducers.view({
@@ -360,14 +456,14 @@ export const useScene = () => {
       setState,
       currentViewId,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const deleteConnector = useCallback(
     (id: string) => {
-      if (!model?.actions || !scene?.actions || !currentViewId) return;
+      if (!currentViewId) return;
 
       saveToHistoryBeforeChange();
       const newState = reducers.view({
@@ -382,14 +478,14 @@ export const useScene = () => {
       setState,
       currentViewId,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const createTextBox = useCallback(
     (newTextBox: TextBox) => {
-      if (!model?.actions || !scene?.actions || !currentViewId) return;
+      if (!currentViewId) return;
 
       saveToHistoryBeforeChange();
       const newState = reducers.view({
@@ -404,14 +500,14 @@ export const useScene = () => {
       setState,
       currentViewId,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const updateTextBox = useCallback(
     (id: string, updates: Partial<TextBox>) => {
-      if (!model?.actions || !scene?.actions || !currentViewId) return;
+      if (!currentViewId) return;
 
       saveToHistoryBeforeChange();
       const newState = reducers.view({
@@ -426,14 +522,14 @@ export const useScene = () => {
       setState,
       currentViewId,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const deleteTextBox = useCallback(
     (id: string) => {
-      if (!model?.actions || !scene?.actions || !currentViewId) return;
+      if (!currentViewId) return;
 
       saveToHistoryBeforeChange();
       const newState = reducers.view({
@@ -448,14 +544,14 @@ export const useScene = () => {
       setState,
       currentViewId,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const createRectangle = useCallback(
     (newRectangle: Rectangle) => {
-      if (!model?.actions || !scene?.actions || !currentViewId) return;
+      if (!currentViewId) return;
 
       saveToHistoryBeforeChange();
       const newState = reducers.view({
@@ -470,14 +566,14 @@ export const useScene = () => {
       setState,
       currentViewId,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const updateRectangle = useCallback(
     (id: string, updates: Partial<Rectangle>) => {
-      if (!model?.actions || !scene?.actions || !currentViewId) return;
+      if (!currentViewId) return;
 
       saveToHistoryBeforeChange();
       const newState = reducers.view({
@@ -492,14 +588,14 @@ export const useScene = () => {
       setState,
       currentViewId,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const deleteRectangle = useCallback(
     (id: string) => {
-      if (!model?.actions || !scene?.actions || !currentViewId) return;
+      if (!currentViewId) return;
 
       saveToHistoryBeforeChange();
       const newState = reducers.view({
@@ -514,14 +610,14 @@ export const useScene = () => {
       setState,
       currentViewId,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const changeLayerOrder = useCallback(
     (action: LayerOrderingAction, item: ItemReference) => {
-      if (!model?.actions || !scene?.actions || !currentViewId) return;
+      if (!currentViewId) return;
 
       saveToHistoryBeforeChange();
       const newState = reducers.view({
@@ -536,14 +632,14 @@ export const useScene = () => {
       setState,
       currentViewId,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const createLayer = useCallback(
     (newLayer: Layer) => {
-      if (!model?.actions || !scene?.actions || !currentViewId) return;
+      if (!currentViewId) return;
 
       saveToHistoryBeforeChange();
       const newState = reducers.view({
@@ -558,14 +654,14 @@ export const useScene = () => {
       setState,
       currentViewId,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const updateLayer = useCallback(
     (id: string, updates: Partial<Layer>) => {
-      if (!model?.actions || !scene?.actions || !currentViewId) return;
+      if (!currentViewId) return;
 
       saveToHistoryBeforeChange();
       const newState = reducers.view({
@@ -580,14 +676,14 @@ export const useScene = () => {
       setState,
       currentViewId,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const deleteLayer = useCallback(
     (id: string) => {
-      if (!model?.actions || !scene?.actions || !currentViewId) return;
+      if (!currentViewId) return;
 
       saveToHistoryBeforeChange();
       const newState = reducers.view({
@@ -602,14 +698,14 @@ export const useScene = () => {
       setState,
       currentViewId,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const setItemsLayer = useCallback(
     (itemRefs: ItemReference[], layerId: string | null) => {
-      if (!model?.actions || !scene?.actions || !currentViewId) return;
+      if (!currentViewId) return;
 
       saveToHistoryBeforeChange();
       const newState = reducers.view({
@@ -624,15 +720,13 @@ export const useScene = () => {
       setState,
       currentViewId,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 
   const transaction = useCallback(
     (operations: () => void) => {
-      if (!model?.actions || !scene?.actions) return;
-
       // Prevent nested transactions
       if (transactionInProgress.current) {
         operations();
@@ -653,13 +747,11 @@ export const useScene = () => {
         transactionInProgress.current = false;
       }
     },
-    [saveToHistoryBeforeChange, model?.actions, scene?.actions]
+    [saveToHistoryBeforeChange]
   );
 
   const placeIcon = useCallback(
     (params: { modelItem: ModelItem; viewItem: ViewItem }) => {
-      if (!model?.actions || !scene?.actions) return;
-
       // Save history before the transaction
       saveToHistoryBeforeChange();
 
@@ -683,8 +775,8 @@ export const useScene = () => {
       createModelItem,
       createViewItem,
       saveToHistoryBeforeChange,
-      model?.actions,
-      scene?.actions
+      modelActions,
+      sceneActions
     ]
   );
 

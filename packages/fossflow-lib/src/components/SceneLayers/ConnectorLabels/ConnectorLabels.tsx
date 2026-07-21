@@ -1,12 +1,12 @@
-import React from 'react';
-import { useScene } from 'src/hooks/useScene';
+import React, { memo } from 'react';
+import type { useScene } from 'src/hooks/useScene';
 import { ConnectorLabel } from './ConnectorLabel';
 
 interface Props {
   connectors: ReturnType<typeof useScene>['connectors'];
 }
 
-export const ConnectorLabels = ({ connectors }: Props) => {
+export const ConnectorLabels = memo(({ connectors }: Props) => {
   return (
     <>
       {connectors
@@ -18,4 +18,6 @@ export const ConnectorLabels = ({ connectors }: Props) => {
         })}
     </>
   );
-};
+});
+
+ConnectorLabels.displayName = 'ConnectorLabels';

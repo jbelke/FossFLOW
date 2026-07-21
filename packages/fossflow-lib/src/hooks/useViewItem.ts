@@ -1,14 +1,17 @@
-import { useMemo } from 'react';
 import { getItemById } from 'src/utils';
-import { useScene } from 'src/hooks/useScene';
+import { useModelStore } from 'src/stores/modelStore';
+import { useUiStateStore } from 'src/stores/uiStateStore';
 
 export const useViewItem = (id: string) => {
-  const { items } = useScene();
+  const currentViewId = useUiStateStore((state) => {
+    return state.view;
+  });
 
-  const viewItem = useMemo(() => {
-    const item = getItemById(items, id);
-    return item ? item.value : null;
-  }, [items, id]);
+  return useModelStore((state) => {
+    const view =
+      getItemById(state.views, currentViewId)?.value ?? state.views[0];
 
-  return viewItem;
+    if (!view?.items) return null;
+    return getItemById(view.items, id)?.value ?? null;
+  });
 };

@@ -1,18 +1,12 @@
-import { useMemo } from 'react';
 import { getItemById } from 'src/utils';
-import { useScene } from 'src/hooks/useScene';
+import { useModelStore } from 'src/stores/modelStore';
 
 export const useColor = (colorId?: string) => {
-  const { colors } = useScene();
-
-  const color = useMemo(() => {
+  return useModelStore((state) => {
     if (colorId === undefined) {
-      return colors.length > 0 ? colors[0] : null;
+      return state.colors.length > 0 ? state.colors[0] : null;
     }
 
-    const item = getItemById(colors, colorId);
-    return item ? item.value : null;
-  }, [colorId, colors]);
-
-  return color;
+    return getItemById(state.colors, colorId)?.value ?? null;
+  });
 };
