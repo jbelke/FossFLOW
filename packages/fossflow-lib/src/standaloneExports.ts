@@ -6,3 +6,11 @@ export { INITIAL_DATA, INITIAL_SCENE_STATE } from 'src/config';
 export * from 'src/schemas';
 export type { IsoflowProps, InitialData } from 'src/types';
 export * from 'src/types/model';
+// Theme surface for host apps (fossflow-app builds its chrome theme from
+// these and drives light/dark with the same persisted preference).
+export { createAppTheme, customVarsFor } from 'src/styles/theme';
+export {
+  useColorMode,
+  COLOR_MODE_STORAGE_KEY
+} from 'src/styles/ThemeProvider';
+export type { ColorModePreference } from 'src/styles/ThemeProvider';
