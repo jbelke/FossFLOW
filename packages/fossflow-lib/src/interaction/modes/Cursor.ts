@@ -103,11 +103,11 @@ const mousedown: ModeActionsAction = ({
 
     uiState.actions.setItemControls(null);
 
-    // Show context menu for empty space on left click
-    uiState.actions.setContextMenu({
-      type: 'EMPTY',
-      tile: uiState.mouse.position.tile
-    });
+    // No context menu here: menus belong to right-click, which
+    // useInteractionManager's onContextMenu already handles for both empty
+    // canvas and entities. Opening one on left-click made it appear when the
+    // user was only deselecting.
+    uiState.actions.setContextMenu(null);
   }
 };
 
