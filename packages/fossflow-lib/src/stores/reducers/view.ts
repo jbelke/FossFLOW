@@ -158,6 +158,12 @@ export const view = ({ action, payload, ctx }: ViewReducerParams) => {
     case 'SET_LAYER_PARENT':
       newState = layerReducers.setLayerParent(payload, ctx);
       break;
+    case 'MOVE_LAYER':
+      newState = layerReducers.moveLayer(payload, ctx);
+      break;
+    case 'MOVE_GROUP':
+      newState = groupReducers.moveGroup(payload, ctx);
+      break;
     case 'CREATE_GROUP':
       newState = groupReducers.createGroup(payload, ctx);
       break;

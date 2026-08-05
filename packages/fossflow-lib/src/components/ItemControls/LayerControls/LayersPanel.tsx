@@ -27,10 +27,17 @@ import { useModelStore } from 'src/stores/modelStore';
 import { useUiStateStore } from 'src/stores/uiStateStore';
 import { ControlsContainer } from '../components/ControlsContainer';
 import { Section } from '../components/Section';
-import { TreeRow, ROW_HEIGHT } from './TreeRow';
+import { TreeRow, ROW_HEIGHT, type DropZone } from './TreeRow';
 import { VirtualList } from './VirtualList';
 
 const TREE_HEIGHT = 380;
+
+const DISABLED_CONTRAST = {
+  '&.Mui-disabled': {
+    color: 'text.disabled',
+    borderColor: 'divider'
+  }
+};
 
 const parseKey = (key: string) => {
   const separator = key.indexOf(':');
@@ -73,6 +80,11 @@ export const LayersPanel = () => {
     return state.selection;
   });
   const [anchorKey, setAnchorKey] = useState<string | null>(null);
+  const [draggedKey, setDraggedKey] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{
+    key: string;
+    zone: DropZone;
+  } | null>(null);
 
   const selection = useMemo(() => {
     return new Set(
@@ -197,6 +209,104 @@ export const LayersPanel = () => {
         row.id === BASE_LAYER_ID ? null : row.id
       );
     }
+  };
+
+  /**
+   * Resolves a drop into the right move. Dropping INSIDE a container reparents
+   * into it; BEFORE/AFTER makes the dragged row a sibling of the target,
+   * inserted at that position. Entities have no children, so they only ever
+   * accept sibling drops — which for an entity means "join that container".
+   *
+   * Reparenting into a row's own descendant is refused by the reducers; this
+   * catches the common case up front so the pointer never suggests it.
+   */
+  const onDropRow = (
+    target: TreeRowData,
+    zone: 'BEFORE' | 'INSIDE' | 'AFTER',
+    sourceKey: string
+  ) => {
+    const source =
+      rows.find((row) => {
+        return row.key === sourceKey;
+      }) ?? null;
+
+    setDraggedKey(null);
+    setDropTarget(null);
+
+    if (!source || source.key === target.key) return;
+
+    // The row that follows the drop point, whose id anchors the insert.
+    const targetIndex = rows.findIndex((row) => {
+      return row.key === target.key;
+    });
+    const following = zone === 'BEFORE' ? target : rows[targetIndex + 1];
+
+    const containerOf = (row: TreeRowData | undefined) => {
+      if (!row) return null;
+      if (zone === 'INSIDE') return row;
+
+      // A sibling drop lands in whatever contains the target row.
+      for (let i = rows.indexOf(row) - 1; i >= 0; i -= 1) {
+        if (rows[i].depth < row.depth && !rows[i].isEntity) return rows[i];
+      }
+
+      return null;
+    };
+
+    const container = containerOf(target);
+
+    if (source.kind === 'LAYER') {
+      // Layers nest only in layers.
+      if (container && container.kind !== 'LAYER') return;
+
+      const siblingBefore =
+        following && following.kind === 'LAYER' && following.key !== source.key
+          ? following.id
+          : null;
+
+      scene.moveLayer(
+        source.id,
+        container ? container.id : null,
+        siblingBefore
+      );
+      return;
+    }
+
+    if (source.kind === 'GROUP') {
+      if (container?.kind === 'GROUP') {
+        const siblingBefore =
+          following && following.kind === 'GROUP' ? following.id : null;
+
+        scene.moveGroup(source.id, container.id, siblingBefore);
+        return;
+      }
+
+      // Dropped onto a layer (or the root): detach from any parent group and
+      // relocate the group to that layer.
+      scene.moveGroup(source.id, null, null);
+      updateGroup(source.id, {
+        layerId:
+          container && container.id !== BASE_LAYER_ID ? container.id : undefined
+      });
+      return;
+    }
+
+    // An entity joins whatever container it was dropped on or beside.
+    const ref: ItemReference = {
+      type: source.kind as ItemReferenceType,
+      id: source.id
+    };
+
+    if (container?.kind === 'GROUP') {
+      setItemsGroup([ref], container.id);
+      return;
+    }
+
+    setItemsGroup([ref], null);
+    setItemsLayer(
+      [ref],
+      container && container.id !== BASE_LAYER_ID ? container.id : null
+    );
   };
 
   const onOpenDetails = (row: TreeRowData) => {
@@ -331,12 +441,16 @@ export const LayersPanel = () => {
             </Button>
           </Stack>
           <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+            {/* MUI's default disabled outlined button is action.disabled on
+                paper, which is well under AA in light mode. Pin both the
+                label and the border to the contrast-checked tokens. */}
             <Button
               size="small"
               variant="outlined"
               startIcon={<GroupIcon />}
               disabled={selectedRefs.length === 0}
               onClick={onGroup}
+              sx={DISABLED_CONTRAST}
             >
               Group
             </Button>
@@ -345,6 +459,7 @@ export const LayersPanel = () => {
               variant="outlined"
               disabled={!canUngroup}
               onClick={onUngroup}
+              sx={DISABLED_CONTRAST}
             >
               Ungroup
             </Button>
@@ -380,6 +495,25 @@ export const LayersPanel = () => {
                     }}
                     onOpenDetails={() => {
                       return onOpenDetails(row);
+                    }}
+                    isDragging={draggedKey === row.key}
+                    dropZone={
+                      dropTarget?.key === row.key && draggedKey !== row.key
+                        ? dropTarget.zone
+                        : null
+                    }
+                    onDragStart={() => {
+                      return setDraggedKey(row.key);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedKey(null);
+                      setDropTarget(null);
+                    }}
+                    onDragOverZone={(zone) => {
+                      return setDropTarget({ key: row.key, zone });
+                    }}
+                    onDrop={(zone, sourceKey) => {
+                      return onDropRow(row, zone, sourceKey);
                     }}
                     onToggleExpanded={() => {
                       return patchRow(row, { isCollapsed: row.isExpanded });

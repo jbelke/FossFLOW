@@ -112,6 +112,14 @@ type ViewReducerAction =
       payload: Parameters<typeof layerReducers.setLayerParent>[0];
     }
   | {
+      action: 'MOVE_LAYER';
+      payload: Parameters<typeof layerReducers.moveLayer>[0];
+    }
+  | {
+      action: 'MOVE_GROUP';
+      payload: Parameters<typeof groupReducers.moveGroup>[0];
+    }
+  | {
       action: 'CREATE_GROUP';
       payload: Parameters<typeof groupReducers.createGroup>[0];
     }

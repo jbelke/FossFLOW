@@ -198,6 +198,57 @@ export const setGroupParent = (
   });
 };
 
+/** Group counterpart of moveLayer — reparent and reposition in one step. */
+export const moveGroup = (
+  {
+    id,
+    parentId,
+    beforeId
+  }: { id: string; parentId: string | null; beforeId: string | null },
+  ctx: ViewReducerContext
+): State => {
+  return produce(ctx.state, (draft) => {
+    const view = getItemByIdOrThrow(draft.model.views, ctx.viewId).value;
+    const groups = view.groups ?? [];
+    const index = groups.findIndex((group) => {
+      return group.id === id;
+    });
+
+    if (index === -1) throw new Error(`Group "${id}" not found in view.`);
+
+    const target = parentId ?? undefined;
+
+    if (target !== undefined) {
+      getGroupOrThrow(view, target);
+
+      if (wouldCreateCycle(groups, id, target)) {
+        throw new Error('A group cannot be moved inside its own subtree.');
+      }
+    }
+
+    const [record] = groups.splice(index, 1);
+
+    setMembership(record, 'parentId', target);
+
+    const insertAt =
+      beforeId === null
+        ? groups.length
+        : groups.findIndex((group) => {
+            return group.id === beforeId;
+          });
+
+    groups.splice(insertAt === -1 ? groups.length : insertAt, 0, record);
+
+    // Joining a group means joining its layer, same rule as setGroupParent.
+    if (target !== undefined) {
+      const parent = getGroupOrThrow(view, target);
+      setMembership(record, 'layerId', parent.layerId);
+    }
+
+    applyGroupLayer(view, id);
+  });
+};
+
 export const setItemsGroup = (
   {
     items,

@@ -97,6 +97,69 @@ export const deleteLayer = (id: string, ctx: ViewReducerContext): State => {
   });
 };
 
+/**
+ * Moves a layer to a new parent and/or a new position among its siblings.
+ *
+ * Sibling order IS array order — layers[] is flat and nesting is by parentId,
+ * so reordering means splicing the record to sit immediately before `beforeId`
+ * (or last among its siblings when null). Doing both in one reducer keeps a
+ * drag that reparents *and* repositions as a single undo step.
+ */
+export const moveLayer = (
+  {
+    id,
+    parentId,
+    beforeId
+  }: { id: string; parentId: string | null; beforeId: string | null },
+  ctx: ViewReducerContext
+): State => {
+  if (id === BASE_LAYER_ID) {
+    throw new Error('The base layer cannot be moved.');
+  }
+
+  return produce(ctx.state, (draft) => {
+    const view = getItemByIdOrThrow(draft.model.views, ctx.viewId).value;
+    const layers = view.layers ?? [];
+    const index = layers.findIndex((layer) => {
+      return layer.id === id;
+    });
+
+    if (index === -1) throw new Error(`Layer "${id}" not found in view.`);
+
+    const target =
+      parentId === null || parentId === BASE_LAYER_ID ? undefined : parentId;
+
+    if (target !== undefined) {
+      const exists = layers.some((layer) => {
+        return layer.id === target;
+      });
+
+      if (!exists) throw new Error(`Layer "${target}" not found in view.`);
+
+      if (wouldCreateCycle(layers, id, target)) {
+        throw new Error('A layer cannot be moved inside its own subtree.');
+      }
+    }
+
+    const [record] = layers.splice(index, 1);
+
+    if (target === undefined) {
+      delete record.parentId;
+    } else {
+      record.parentId = target;
+    }
+
+    const insertAt =
+      beforeId === null
+        ? layers.length
+        : layers.findIndex((layer) => {
+            return layer.id === beforeId;
+          });
+
+    layers.splice(insertAt === -1 ? layers.length : insertAt, 0, record);
+  });
+};
+
 export const setLayerParent = (
   { id, parentId }: { id: string; parentId: string | null },
   ctx: ViewReducerContext

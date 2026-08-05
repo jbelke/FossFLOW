@@ -170,6 +170,39 @@ describe('corrupt parent ids', () => {
     expect(keys(rows)).toContain('LAYER:b');
   });
 
+  // Regression: the sweep used to fire on "was not emitted", which is also
+  // true of everything inside a COLLAPSED container — so collapsing a layer
+  // teleported its groups up to the root.
+  test('collapsing a layer does not promote its groups to the root', () => {
+    const rows = build((view) => {
+      view.layers = [{ id: 'layer1', name: 'Layer 1', isCollapsed: true }];
+      view.groups = [{ id: 'g1', name: 'G1', layerId: 'layer1' }];
+    });
+
+    expect(keys(rows)).not.toContain('GROUP:g1');
+  });
+
+  test('expanding that same layer shows the group nested inside it', () => {
+    const rows = build((view) => {
+      view.layers = [{ id: 'layer1', name: 'Layer 1' }];
+      view.groups = [{ id: 'g1', name: 'G1', layerId: 'layer1' }];
+    });
+
+    const group = rows.find((row) => {
+      return row.key === 'GROUP:g1';
+    })!;
+
+    expect(group.depth).toBe(1);
+  });
+
+  test('a group whose layer does not exist is still shown at the root', () => {
+    const rows = build((view) => {
+      view.groups = [{ id: 'g1', name: 'G1', layerId: 'ghost' }];
+    });
+
+    expect(keys(rows)).toContain('GROUP:g1');
+  });
+
   test('a group in a parent cycle is still shown', () => {
     const rows = build((view) => {
       view.groups = [

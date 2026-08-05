@@ -28,6 +28,25 @@ import type { TreeRow as TreeRowData } from 'src/utils';
 export const ROW_HEIGHT = 34;
 const INDENT = 14;
 
+/**
+ * Standard tree drag zones: the outer quarters insert between siblings, the
+ * middle half drops into the row. Entity rows hold nothing, so their middle
+ * band collapses — dropping on a node means "next to it", never "into it".
+ */
+const zoneFromEvent = (
+  event: React.DragEvent,
+  row: TreeRowData
+): DropZone => {
+  const bounds = event.currentTarget.getBoundingClientRect();
+  const offset = (event.clientY - bounds.top) / (bounds.height || 1);
+
+  if (row.isEntity) return offset < 0.5 ? 'BEFORE' : 'AFTER';
+  if (offset < 0.25) return 'BEFORE';
+  if (offset > 0.75) return 'AFTER';
+
+  return 'INSIDE';
+};
+
 const KIND_ICONS = {
   LAYER: LayerIcon,
   GROUP: GroupIcon,
@@ -38,11 +57,22 @@ const KIND_ICONS = {
   TEXTBOX: TextIcon
 };
 
+/** Where a drop would land relative to the hovered row. */
+export type DropZone = 'BEFORE' | 'INSIDE' | 'AFTER';
+
 interface Props {
   row: TreeRowData;
   isSelected: boolean;
   isActiveLayer: boolean;
   canRename: boolean;
+  /** Non-null while a drag is hovering this row. */
+  dropZone: DropZone | null;
+  isDragging: boolean;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onDragOverZone: (zone: DropZone) => void;
+  /** sourceKey comes off the dataTransfer, not React state — see onDrop. */
+  onDrop: (zone: DropZone, sourceKey: string) => void;
   onSelect: (event: React.MouseEvent) => void;
   /** Double-click on an entity row — opens that entity's own controls. */
   onOpenDetails: () => void;
@@ -58,6 +88,12 @@ export const TreeRow = ({
   isSelected,
   isActiveLayer,
   canRename,
+  dropZone,
+  isDragging,
+  onDragStart,
+  onDragEnd,
+  onDragOverZone,
+  onDrop,
   onSelect,
   onOpenDetails,
   onToggleExpanded,
@@ -91,13 +127,56 @@ export const TreeRow = ({
       aria-level={row.depth + 1}
       aria-selected={isSelected}
       aria-expanded={row.hasChildren ? row.isExpanded : undefined}
+      draggable
+      onDragStart={(e: React.DragEvent) => {
+        // Needed for Firefox to start a drag at all.
+        e.dataTransfer.setData('text/plain', row.key);
+        e.dataTransfer.effectAllowed = 'move';
+        onDragStart();
+      }}
+      onDragEnd={onDragEnd}
+      onDragOver={(e: React.DragEvent) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        onDragOverZone(zoneFromEvent(e, row));
+      }}
+      onDrop={(e: React.DragEvent) => {
+        e.preventDefault();
+        // The drag source is carried on the dataTransfer rather than read
+        // back out of React state: the state set in onDragStart has not
+        // necessarily re-rendered by the time the drop handler's closure was
+        // created, so reading it here can see a stale null.
+        onDrop(zoneFromEvent(e, row), e.dataTransfer.getData('text/plain'));
+      }}
       sx={{
         height: ROW_HEIGHT,
         pl: `${row.depth * INDENT + 4}px`,
         pr: 0.5,
         borderRadius: 1,
-        bgcolor: isSelected ? 'action.selected' : 'transparent',
-        outline: isActiveLayer ? '1px solid' : 'none',
+        opacity: isDragging ? 0.4 : 1,
+        bgcolor:
+          dropZone === 'INSIDE'
+            ? 'action.selected'
+            : isSelected
+              ? 'action.selected'
+              : 'transparent',
+        // The insert line and the "drop inside" fill are mutually exclusive,
+        // so one box-shadow slot carries whichever applies.
+        boxShadow:
+          dropZone === 'BEFORE'
+            ? (theme) => {
+                return `inset 0 2px 0 0 ${theme.palette.primary.main}`;
+              }
+            : dropZone === 'AFTER'
+              ? (theme) => {
+                  return `inset 0 -2px 0 0 ${theme.palette.primary.main}`;
+                }
+              : dropZone === 'INSIDE'
+                ? (theme) => {
+                    return `inset 0 0 0 2px ${theme.palette.primary.main}`;
+                  }
+                : 'none',
+        outline: isActiveLayer && !dropZone ? '1px solid' : 'none',
         outlineColor: 'primary.main',
         '&:hover': {
           bgcolor: isSelected ? 'action.selected' : 'action.hover'
@@ -114,6 +193,10 @@ export const TreeRow = ({
               e.stopPropagation();
               onToggleExpanded();
             }}
+            sx={{
+              color: 'text.secondary',
+              '&:hover': { color: 'text.primary' }
+            }}
           >
             {row.isExpanded ? (
               <ExpandedIcon fontSize="small" />
@@ -124,9 +207,12 @@ export const TreeRow = ({
         )}
       </Box>
 
+      {/* Semantic palette colours throughout rather than opacity: the theme's
+          text.secondary/text.disabled are the values checked against AA in
+          both modes, and stacked opacity silently undercuts them. */}
       <KindIcon
         fontSize="small"
-        sx={{ flexShrink: 0, opacity: 0.6, mr: 0.25 }}
+        sx={{ flexShrink: 0, color: 'text.secondary', mr: 0.25 }}
       />
 
       <Box
@@ -182,7 +268,7 @@ export const TreeRow = ({
             noWrap
             variant="body2"
             sx={{
-              opacity: row.isEffectivelyHidden ? 0.45 : 1,
+              color: row.isEffectivelyHidden ? 'text.disabled' : 'text.primary',
               fontStyle: row.isEffectivelyHidden ? 'italic' : 'normal',
               fontWeight: row.isEntity ? 400 : 500
             }}
@@ -218,7 +304,10 @@ export const TreeRow = ({
               e.stopPropagation();
               onToggleVisible();
             }}
-            sx={{ opacity: isInheritedHide ? 0.35 : 1 }}
+            sx={{
+              color: isInheritedHide ? 'text.disabled' : 'text.secondary',
+              '&:hover': { color: 'text.primary' }
+            }}
           >
             {row.isVisible ? (
               <VisibleIcon fontSize="small" />
@@ -246,7 +335,10 @@ export const TreeRow = ({
               e.stopPropagation();
               onToggleLocked();
             }}
-            sx={{ opacity: isInheritedLock ? 0.35 : 1 }}
+            sx={{
+              color: isInheritedLock ? 'text.disabled' : 'text.secondary',
+              '&:hover': { color: 'text.primary' }
+            }}
           >
             {row.isLocked ? (
               <LockIcon fontSize="small" />

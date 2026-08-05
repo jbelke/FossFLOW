@@ -9,7 +9,9 @@ import {
   DeleteOutline as DeleteOutlineIcon,
   Undo as UndoIcon,
   Redo as RedoIcon,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Layers as LayersIcon,
+  LayersOutlined as LayersOutlinedIcon
 } from '@mui/icons-material';
 import { UiElement } from 'src/components/UiElement/UiElement';
 import { IconButton } from 'src/components/IconButton/IconButton';
@@ -43,17 +45,39 @@ export const MainMenu = () => {
   const initialDataManager = useInitialDataManager();
   const { undo, redo, canUndo, canRedo, clearHistory } = useHistory();
 
+  // Same toggle as the ToolMenu's Layers button, surfaced here too — the
+  // tool row is the first thing to go off-screen on a narrow viewport.
+  //
+  // Opening this menu clears itemControls (the menu and the item panels share
+  // the top-left corner and would otherwise overlap), so by the time the menu
+  // is on screen the layers panel is already gone and reading itemControls
+  // would always say "closed". Snapshot the state on the way in instead —
+  // that is what the user actually sees behind the menu.
+  const isLayersPanelOpen = useUiStateStore((state) => {
+    return state.itemControls?.type === 'LAYERS';
+  });
+  const [layersWereOpen, setLayersWereOpen] = useState(false);
+
   const onToggleMenu = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
+      setLayersWereOpen(isLayersPanelOpen);
       setAnchorEl(event.currentTarget);
       uiStateActions.setIsMainMenuOpen(true);
     },
-    [uiStateActions]
+    [uiStateActions, isLayersPanelOpen]
   );
 
   const gotoUrl = useCallback((url: string) => {
     window.open(url, '_blank');
   }, []);
+
+  const onToggleLayers = useCallback(() => {
+    // Close the menu FIRST: setIsMainMenuOpen nulls itemControls, so opening
+    // the panel before it would immediately undo the open.
+    uiStateActions.setIsMainMenuOpen(false);
+
+    if (!layersWereOpen) uiStateActions.setItemControls({ type: 'LAYERS' });
+  }, [uiStateActions, layersWereOpen]);
 
   const { load } = initialDataManager;
 
@@ -194,7 +218,17 @@ export const MainMenu = () => {
             Redo
           </MenuItem>
 
-          {(canUndo || canRedo) && sectionVisibility.actions && <Divider />}
+          <Divider />
+
+          {/* View */}
+          <MenuItem
+            onClick={onToggleLayers}
+            Icon={layersWereOpen ? <LayersIcon /> : <LayersOutlinedIcon />}
+          >
+            {layersWereOpen ? 'Hide layers' : 'Show layers'}
+          </MenuItem>
+
+          {sectionVisibility.actions && <Divider />}
 
           {/* File Actions */}
           {mainMenuOptions.includes('ACTION.OPEN') && (
@@ -217,7 +251,7 @@ export const MainMenu = () => {
 
           {mainMenuOptions.includes('EXPORT.PNG') && (
             <MenuItem onClick={onExportAsImage} Icon={<ExportImageIcon />}>
-              Export as image
+              Export as PNG, JPG, SVG or PDF
             </MenuItem>
           )}
 

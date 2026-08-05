@@ -385,6 +385,115 @@ describe('layer nesting', () => {
     expect(byId(view.layers, 'layer3').parentId).toBe('layer1');
   });
 
+  test('MOVE_LAYER reorders siblings without changing nesting', () => {
+    const model = getModel((view) => {
+      view.layers.push({ id: 'layer3', name: 'Layer 3' });
+    });
+
+    const view = run(
+      'MOVE_LAYER',
+      { id: 'layer3', parentId: null, beforeId: 'layer1' },
+      model
+    );
+
+    expect(
+      view.layers!.map((l: any) => {
+        return l.id;
+      })
+    ).toEqual(['layer3', 'layer1', 'layer2']);
+  });
+
+  test('MOVE_LAYER reparents and repositions in one step', () => {
+    const model = getModel((view) => {
+      view.layers.push({ id: 'layer3', name: 'Layer 3' });
+    });
+
+    const view = run(
+      'MOVE_LAYER',
+      { id: 'layer3', parentId: 'layer1', beforeId: 'layer2' },
+      model
+    );
+
+    expect(byId(view.layers, 'layer3').parentId).toBe('layer1');
+    expect(
+      view.layers!.map((l: any) => {
+        return l.id;
+      })
+    ).toEqual(['layer1', 'layer3', 'layer2']);
+  });
+
+  test('MOVE_LAYER to the end when beforeId is null', () => {
+    const view = run(
+      'MOVE_LAYER',
+      { id: 'layer1', parentId: null, beforeId: null },
+      getModel()
+    );
+
+    expect(
+      view.layers!.map((l: any) => {
+        return l.id;
+      })
+    ).toEqual(['layer2', 'layer1']);
+  });
+
+  test('MOVE_LAYER refuses to nest a layer inside its own subtree', () => {
+    const model = getModel((view) => {
+      view.layers[1].parentId = 'layer1';
+    });
+
+    expect(() => {
+      return run(
+        'MOVE_LAYER',
+        { id: 'layer1', parentId: 'layer2', beforeId: null },
+        model
+      );
+    }).toThrow(/own subtree/);
+  });
+
+  test('MOVE_LAYER refuses to move the base layer', () => {
+    expect(() => {
+      return run(
+        'MOVE_LAYER',
+        { id: '__BASE__', parentId: null, beforeId: null },
+        getModel()
+      );
+    }).toThrow(/base layer cannot be moved/);
+  });
+
+  test('MOVE_GROUP reorders and reparents, pulling members onto the layer', () => {
+    const model = getModel((view) => {
+      view.groups = [
+        { id: 'g1', name: 'G1', layerId: 'layer1' },
+        { id: 'g2', name: 'G2', layerId: 'layer2' }
+      ];
+      view.items[0].groupId = 'g2';
+      view.items[0].layerId = 'layer2';
+    });
+
+    const view = run(
+      'MOVE_GROUP',
+      { id: 'g2', parentId: 'g1', beforeId: null },
+      model
+    );
+
+    expect(byId(view.groups, 'g2').parentId).toBe('g1');
+    expect(byId(view.groups, 'g2').layerId).toBe('layer1');
+    expect(view.items[0].layerId).toBe('layer1');
+  });
+
+  test('MOVE_GROUP refuses its own subtree', () => {
+    const model = getModel((view) => {
+      view.groups = [
+        { id: 'g1', name: 'G1' },
+        { id: 'g2', name: 'G2', parentId: 'g1' }
+      ];
+    });
+
+    expect(() => {
+      return run('MOVE_GROUP', { id: 'g1', parentId: 'g2', beforeId: null }, model);
+    }).toThrow(/own subtree/);
+  });
+
   test('deleting a top-level layer still drops contents to the base layer', () => {
     const model = getModel((view) => {
       view.items[0].layerId = 'layer1';

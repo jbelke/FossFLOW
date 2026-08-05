@@ -745,6 +745,36 @@ export const useScene = () => {
     [getState, setState, currentViewId, saveToHistoryBeforeChange]
   );
 
+  const moveLayer = useCallback(
+    (id: string, parentId: string | null, beforeId: string | null) => {
+      if (!currentViewId) return;
+
+      saveToHistoryBeforeChange();
+      const newState = reducers.view({
+        action: 'MOVE_LAYER',
+        payload: { id, parentId, beforeId },
+        ctx: { viewId: currentViewId, state: getState() }
+      });
+      setState(newState);
+    },
+    [getState, setState, currentViewId, saveToHistoryBeforeChange]
+  );
+
+  const moveGroup = useCallback(
+    (id: string, parentId: string | null, beforeId: string | null) => {
+      if (!currentViewId) return;
+
+      saveToHistoryBeforeChange();
+      const newState = reducers.view({
+        action: 'MOVE_GROUP',
+        payload: { id, parentId, beforeId },
+        ctx: { viewId: currentViewId, state: getState() }
+      });
+      setState(newState);
+    },
+    [getState, setState, currentViewId, saveToHistoryBeforeChange]
+  );
+
   const createGroup = useCallback(
     (newGroup: Group, itemRefs: ItemReference[]) => {
       if (!currentViewId) return;
@@ -910,6 +940,8 @@ export const useScene = () => {
     deleteLayer,
     setItemsLayer,
     setLayerParent,
+    moveLayer,
+    moveGroup,
     createGroup,
     updateGroup,
     deleteGroup,

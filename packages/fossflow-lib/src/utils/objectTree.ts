@@ -39,6 +39,37 @@ interface BuildParams {
   itemNames: Map<string, string>;
 }
 
+/**
+ * Whether walking up parentId from `id` terminates at a node with no parent.
+ * False for a dangling parentId and for a cycle — the two ways a document can
+ * describe a node that belongs nowhere.
+ */
+const isRooted = (nodes: TreeNodeLike[], id: string): boolean => {
+  const byId = new Map<string, TreeNodeLike>();
+
+  nodes.forEach((node) => {
+    byId.set(node.id, node);
+  });
+
+  const seen = new Set<string>();
+  let cursor = byId.get(id);
+
+  while (cursor) {
+    if (cursor.parentId === undefined) return true;
+    if (seen.has(cursor.id)) return false;
+
+    seen.add(cursor.id);
+    cursor = byId.get(cursor.parentId);
+  }
+
+  return false;
+};
+
+interface TreeNodeLike {
+  id: string;
+  parentId?: string;
+}
+
 const entityName = (
   kind: ItemReferenceType,
   entity: any,
@@ -108,6 +139,41 @@ export const buildTreeRows = ({
       byLayer.set(layerId, bucket);
     });
   });
+
+  /**
+   * A group is placed when its own parent chain is rooted AND the layer that
+   * chain lands on actually exists and is itself rooted — otherwise nothing
+   * in the layer walk will ever reach it.
+   */
+  const isGroupPlaced = (group: (typeof groups)[number]): boolean => {
+    if (!isRooted(groups, group.id)) return false;
+
+    const byId = new Map<string, (typeof groups)[number]>();
+
+    groups.forEach((candidate) => {
+      byId.set(candidate.id, candidate);
+    });
+
+    let root = group;
+
+    while (root.parentId !== undefined) {
+      const parent = byId.get(root.parentId);
+
+      if (!parent) return false;
+
+      root = parent;
+    }
+
+    const layerId = getEffectiveLayerId(root);
+
+    if (layerId === BASE_LAYER_ID) return true;
+
+    const layerExists = layers.some((layer) => {
+      return layer.id === layerId;
+    });
+
+    return layerExists && isRooted(layers, layerId);
+  };
 
   const childLayers = (parentId: string | undefined) => {
     return layers.filter((layer) => {
@@ -280,12 +346,20 @@ export const buildTreeRows = ({
 
   // Sweep: anything a dangling or cyclic parentId kept out of the walk above
   // is shown at the root rather than silently dropped.
+  //
+  // "Not emitted" alone is the wrong test — a container inside a COLLAPSED
+  // ancestor is also not emitted, and sweeping those would teleport every
+  // group in a collapsed layer up to the root. So the sweep asks whether the
+  // node is genuinely unrooted, which is independent of disclosure state.
   layers.forEach((layer) => {
     if (layer.id === BASE_LAYER_ID) return;
+    if (isRooted(layers, layer.id)) return;
 
     emitLayer(layer, 0, false, false);
   });
   groups.forEach((group) => {
+    if (isGroupPlaced(group)) return;
+
     emitGroup(group, 0, false, false);
   });
 
