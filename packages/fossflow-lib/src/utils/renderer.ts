@@ -38,7 +38,7 @@ import {
   toPx,
   getItemByIdOrThrow
 } from 'src/utils';
-import { getEffectiveLayerId } from './layers';
+import { isEntityLocked, type OrganizedEntity } from './layers';
 import { useScene } from 'src/hooks/useScene';
 
 interface ScreenToIso {
@@ -466,11 +466,13 @@ export const getItemAtTile = ({
   const connectors = useAll ? scene.connectors : scene.visibleConnectors;
   const rectangles = useAll ? scene.rectangles : scene.visibleRectangles;
 
-  const lockedLayerIds =
-    filter === 'VISIBLE_UNLOCKED' ? scene.visibility.lockedLayerIds : null;
+  // A lock inherits down both trees and can also be set on the entity itself,
+  // so this asks isEntityLocked rather than probing the layer set directly.
+  const checkLocked =
+    filter === 'VISIBLE_UNLOCKED' && scene.visibility.hasLocked;
 
-  const isInteractive = (entity: { layerId?: string }) => {
-    return !lockedLayerIds || !lockedLayerIds.has(getEffectiveLayerId(entity));
+  const isInteractive = (entity: OrganizedEntity) => {
+    return !checkLocked || !isEntityLocked(entity, scene.visibility);
   };
 
   const viewItem = items.find((item) => {

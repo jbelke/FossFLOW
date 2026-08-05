@@ -19,7 +19,7 @@ import type { State } from 'src/stores/reducers/types';
 import {
   getItemByIdOrThrow,
   computeVisibility,
-  getEffectiveLayerId
+  isEntityHidden
 } from 'src/utils';
 import {
   CONNECTOR_DEFAULTS,
@@ -223,10 +223,10 @@ export const useScene = () => {
   // layers perf win. When nothing is hidden the same array refs are returned
   // so memoized consumers see no change.
   const visibleItems = useMemo(() => {
-    if (visibility.hiddenLayerIds.size === 0) return items;
+    if (!visibility.hasHidden) return items;
 
     return items.filter((viewItem) => {
-      return !visibility.hiddenLayerIds.has(getEffectiveLayerId(viewItem));
+      return !isEntityHidden(viewItem, visibility);
     });
   }, [items, visibility]);
 
@@ -239,18 +239,18 @@ export const useScene = () => {
   }, [connectors, visibility]);
 
   const visibleRectangles = useMemo(() => {
-    if (visibility.hiddenLayerIds.size === 0) return rectangles;
+    if (!visibility.hasHidden) return rectangles;
 
     return rectangles.filter((rectangle) => {
-      return !visibility.hiddenLayerIds.has(getEffectiveLayerId(rectangle));
+      return !isEntityHidden(rectangle, visibility);
     });
   }, [rectangles, visibility]);
 
   const visibleTextBoxes = useMemo(() => {
-    if (visibility.hiddenLayerIds.size === 0) return textBoxes;
+    if (!visibility.hasHidden) return textBoxes;
 
     return textBoxes.filter((textBox) => {
-      return !visibility.hiddenLayerIds.has(getEffectiveLayerId(textBox));
+      return !isEntityHidden(textBox, visibility);
     });
   }, [textBoxes, visibility]);
 

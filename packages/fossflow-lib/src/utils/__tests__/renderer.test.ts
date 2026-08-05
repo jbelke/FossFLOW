@@ -136,7 +136,9 @@ describe('getItemAtTile() layer filters', () => {
   const items = [
     { id: 'node1', tile: { x: 0, y: 0 } },
     { id: 'hidden1', tile: { x: 2, y: 2 }, layerId: 'hiddenLayer' },
-    { id: 'locked1', tile: { x: 4, y: 4 }, layerId: 'lockedLayer' }
+    { id: 'locked1', tile: { x: 4, y: 4 }, layerId: 'lockedLayer' },
+    { id: 'lockedGroup1', tile: { x: 6, y: 6 }, groupId: 'lockedGroup' },
+    { id: 'selfLocked1', tile: { x: 8, y: 8 }, isLocked: true }
   ];
 
   const scene = {
@@ -153,7 +155,11 @@ describe('getItemAtTile() layer filters', () => {
     visibility: {
       hiddenLayerIds: new Set(['hiddenLayer']),
       lockedLayerIds: new Set(['lockedLayer']),
-      hiddenConnectorIds: new Set()
+      hiddenGroupIds: new Set(),
+      lockedGroupIds: new Set(['lockedGroup']),
+      hiddenConnectorIds: new Set(),
+      hasHidden: true,
+      hasLocked: true
     }
   } as unknown as ReturnType<typeof useScene>;
 
@@ -184,6 +190,26 @@ describe('getItemAtTile() layer filters', () => {
         filter: 'VISIBLE_UNLOCKED'
       })
     ).toEqual({ type: 'ITEM', id: 'node1' });
+  });
+
+  test('VISIBLE_UNLOCKED skips items locked by their group', () => {
+    expect(
+      getItemAtTile({
+        tile: { x: 6, y: 6 },
+        scene,
+        filter: 'VISIBLE_UNLOCKED'
+      })
+    ).toBeNull();
+  });
+
+  test('VISIBLE_UNLOCKED skips items locked in their own right', () => {
+    expect(
+      getItemAtTile({
+        tile: { x: 8, y: 8 },
+        scene,
+        filter: 'VISIBLE_UNLOCKED'
+      })
+    ).toBeNull();
   });
 
   test('ALL finds hidden items (tile occupancy)', () => {
