@@ -15,7 +15,11 @@ import {
   Close as CloseIcon,
   WorkspacesOutlined as GroupIcon
 } from '@mui/icons-material';
-import type { ItemReference, ItemReferenceType } from 'src/types';
+import type {
+  ItemReference,
+  ItemReferenceType,
+  SelectionKind
+} from 'src/types';
 import { BASE_LAYER_ID } from 'src/schemas/views';
 import { generateId, buildTreeRows, rowsInRange, type TreeRow as TreeRowData } from 'src/utils';
 import { useScene } from 'src/hooks/useScene';
@@ -63,8 +67,33 @@ export const LayersPanel = () => {
     setItemsGroup
   } = scene;
 
-  const [selection, setSelection] = useState<Set<string>>(new Set());
+  // The selection lives in uiState, not in this component, so the canvas and
+  // the Cmd+G shortcut act on exactly what the tree shows as selected.
+  const selectionRefs = useUiStateStore((state) => {
+    return state.selection;
+  });
   const [anchorKey, setAnchorKey] = useState<string | null>(null);
+
+  const selection = useMemo(() => {
+    return new Set(
+      selectionRefs.map((ref) => {
+        return `${ref.kind}:${ref.id}`;
+      })
+    );
+  }, [selectionRefs]);
+
+  const setSelection = useCallback(
+    (keys: Iterable<string>) => {
+      uiStateActions.setSelection(
+        [...keys].map((key) => {
+          const { kind, id } = parseKey(key);
+
+          return { kind: kind as SelectionKind, id };
+        })
+      );
+    },
+    [uiStateActions]
+  );
   const [menu, setMenu] = useState<{
     anchorEl: HTMLElement;
     row: TreeRowData;
@@ -131,31 +160,26 @@ export const LayersPanel = () => {
     const isRange = event.shiftKey && anchorKey !== null;
 
     if (isRange) {
-      const range = rowsInRange(rows, anchorKey as string, row.key);
+      const next = new Set(selection);
 
-      setSelection((current) => {
-        const next = new Set(current);
-        range.forEach((rangeRow) => {
-          next.add(rangeRow.key);
-        });
-        return next;
+      rowsInRange(rows, anchorKey as string, row.key).forEach((rangeRow) => {
+        next.add(rangeRow.key);
       });
+      setSelection(next);
 
       return;
     }
 
     if (isToggle) {
-      setSelection((current) => {
-        const next = new Set(current);
+      const next = new Set(selection);
 
-        if (next.has(row.key)) {
-          next.delete(row.key);
-        } else {
-          next.add(row.key);
-        }
+      if (next.has(row.key)) {
+        next.delete(row.key);
+      } else {
+        next.add(row.key);
+      }
 
-        return next;
-      });
+      setSelection(next);
       setAnchorKey(row.key);
 
       return;

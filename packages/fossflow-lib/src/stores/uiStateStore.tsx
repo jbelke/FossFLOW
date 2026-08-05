@@ -37,7 +37,11 @@ const initialState = () => {
       clipboard: null,
       renamingItemId: null,
       activeLayerId: null,
+      selection: [],
       actions: {
+        setSelection: (selection) => {
+          set({ selection });
+        },
         setClipboard: (clipboard) => {
           set({ clipboard });
         },
@@ -55,7 +59,9 @@ const initialState = () => {
           if (get().view === view) {
             set({ view });
           } else {
-            set({ view, activeLayerId: null });
+            // The selection names entities in the outgoing view, so it goes
+            // with the active layer rather than dangling into the new one.
+            set({ view, activeLayerId: null, selection: [] });
           }
         },
         setMainMenuOptions: (mainMenuOptions) => {
@@ -77,6 +83,7 @@ const initialState = () => {
             itemControls: null,
             renamingItemId: null,
             activeLayerId: null,
+            selection: [],
             zoom: 1
           });
         },

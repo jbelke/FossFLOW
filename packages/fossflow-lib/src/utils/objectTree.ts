@@ -4,6 +4,7 @@ import {
   isLayerVisible,
   isLayerLocked,
   getEffectiveLayerId,
+  collectSubtree,
   type ViewVisibility,
   type OrganizedEntity
 } from './layers';
@@ -289,6 +290,89 @@ export const buildTreeRows = ({
   });
 
   return rows;
+};
+
+const findEntity = (
+  view: View,
+  ref: { type: ItemReferenceType; id: string }
+): OrganizedEntity | undefined => {
+  const collections: Partial<Record<ItemReferenceType, OrganizedEntity[]>> = {
+    ITEM: view.items,
+    CONNECTOR: view.connectors ?? [],
+    RECTANGLE: view.rectangles ?? [],
+    TEXTBOX: view.textBoxes ?? []
+  };
+
+  return (collections[ref.type] ?? []).find((candidate) => {
+    return (candidate as { id: string }).id === ref.id;
+  });
+};
+
+/** The group an entity belongs to, or undefined when it is ungrouped. */
+export const getEntityGroupId = (
+  view: View,
+  ref: { type: ItemReferenceType; id: string }
+): string | undefined => {
+  return findEntity(view, ref)?.groupId;
+};
+
+/** The layer an entity sits on; undefined means the base layer. */
+export const getEntityLayerId = (
+  view: View,
+  ref: { type: ItemReferenceType; id: string }
+): string | undefined => {
+  return findEntity(view, ref)?.layerId;
+};
+
+/**
+ * Every draggable entity in a group, including entities in nested subgroups.
+ *
+ * Connectors are deliberately excluded: DragItems moves connectors by moving
+ * the items they are anchored to, so including them would double-handle the
+ * common case. A connector anchored to bare tiles rather than to items stays
+ * put when its group moves — a known gap, not an oversight.
+ */
+export const getGroupMemberRefs = (
+  view: View,
+  groupId: string
+): { type: ItemReferenceType; id: string }[] => {
+  const subtree = collectSubtree(view.groups ?? [], groupId);
+  const refs: { type: ItemReferenceType; id: string }[] = [];
+
+  const collect = (kind: ItemReferenceType, entities: OrganizedEntity[]) => {
+    entities.forEach((entity) => {
+      if (entity.groupId !== undefined && subtree.has(entity.groupId)) {
+        refs.push({ type: kind, id: (entity as { id: string }).id });
+      }
+    });
+  };
+
+  collect('ITEM', view.items);
+  collect('RECTANGLE', view.rectangles ?? []);
+  collect('TEXTBOX', view.textBoxes ?? []);
+
+  return refs;
+};
+
+/**
+ * Expands a single moused-down reference into everything that should move
+ * with it: the whole group when the entity belongs to one, otherwise just
+ * itself. Connector anchors are never expanded — dragging an anchor reshapes
+ * one connector and is not a group move.
+ */
+export const expandToGroup = (
+  view: View,
+  ref: { type: ItemReferenceType; id: string }
+): { type: ItemReferenceType; id: string }[] => {
+  if (ref.type === 'CONNECTOR_ANCHOR') return [ref];
+
+  const groupId = getEntityGroupId(view, ref);
+
+  if (groupId === undefined) return [ref];
+
+  const members = getGroupMemberRefs(view, groupId);
+
+  return members.length > 0 ? members : [ref];
 };
 
 /**

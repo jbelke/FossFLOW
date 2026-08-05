@@ -4,13 +4,20 @@ import {
   useUiStateStore,
   useUiStateStoreApi
 } from 'src/stores/uiStateStore';
-import { ModeActions, State, SlimMouseEvent, Coords } from 'src/types';
+import {
+  ModeActions,
+  State,
+  SlimMouseEvent,
+  Coords,
+  ItemReferenceType
+} from 'src/types';
 import { DialogTypeEnum } from 'src/types/ui';
 import {
   getMouse,
   getItemAtTile,
   generateId,
-  resolveLayerId
+  resolveLayerId,
+  getEntityLayerId
 } from 'src/utils';
 import { useResizeObserver } from 'src/hooks/useResizeObserver';
 import { useScene } from 'src/hooks/useScene';
@@ -152,6 +159,52 @@ export const useInteractionManager = () => {
       // Everything that mutates the diagram is editor-only. Read-only modes
       // still allow selection, so mode alone is not a sufficient guard.
       const canEdit = uiState.editorMode === 'EDITABLE';
+
+      // Grouping acts on the shared selection, which the object tree fills
+      // in. Cmd+Shift+G checked first — Cmd+G would otherwise swallow it.
+      if (canEdit && isCtrlOrCmd && key === 'g') {
+        e.preventDefault();
+
+        const groupRefs = uiState.selection.filter((ref) => {
+          return ref.kind === 'GROUP';
+        });
+        const entityRefs = uiState.selection
+          .filter((ref) => {
+            return ref.kind !== 'GROUP' && ref.kind !== 'LAYER';
+          })
+          .map((ref) => {
+            return { type: ref.kind as ItemReferenceType, id: ref.id };
+          });
+
+        if (e.shiftKey) {
+          if (groupRefs.length > 0) {
+            groupRefs.forEach((ref) => {
+              scene.deleteGroup(ref.id);
+            });
+          } else if (entityRefs.length > 0) {
+            scene.setItemsGroup(entityRefs, null);
+          }
+
+          uiState.actions.setSelection([]);
+          return;
+        }
+
+        if (entityRefs.length > 0) {
+          const groupId = generateId();
+
+          scene.createGroup(
+            {
+              id: groupId,
+              name: `Group ${scene.groups.length + 1}`,
+              layerId: getEntityLayerId(scene.currentView, entityRefs[0])
+            },
+            entityRefs
+          );
+          uiState.actions.setSelection([{ kind: 'GROUP', id: groupId }]);
+        }
+
+        return;
+      }
 
       // Paste needs no selection, just a clipboard and a mouse position.
       if (canEdit && isCtrlOrCmd && key === 'v') {

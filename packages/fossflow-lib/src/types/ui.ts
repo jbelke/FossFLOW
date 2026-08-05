@@ -2,7 +2,7 @@ import { HotkeyProfile } from 'src/config/hotkeys';
 import { PanSettings } from 'src/config/panSettings';
 import { Coords, EditorModeEnum, MainMenuOptions } from './common';
 import { Icon, ModelItem, ViewItem } from './model';
-import { ItemReference } from './scene';
+import { ItemReference, ItemReferenceType } from './scene';
 
 interface AddItemControls {
   type: 'ADD_ITEM';
@@ -171,6 +171,18 @@ export interface UiState {
   // Newly created entities land on this layer; null means the base layer.
   // Not part of undo history — creation sites re-validate via resolveLayerId.
   activeLayerId: string | null;
+  // Multi-selection, shared so the object tree, the canvas and the keyboard
+  // shortcuts all act on the same set. Kinds beyond the entity types let a
+  // layer or group row be selected as itself rather than as its contents.
+  // Not part of undo history — a selection is not a document edit.
+  selection: SelectionRef[];
+}
+
+export type SelectionKind = 'LAYER' | 'GROUP' | ItemReferenceType;
+
+export interface SelectionRef {
+  kind: SelectionKind;
+  id: string;
 }
 
 export interface UiStateActions {
@@ -196,6 +208,7 @@ export interface UiStateActions {
   setClipboard: (clipboard: NodeClipboardEntry | null) => void;
   setRenamingItemId: (id: string | null) => void;
   setActiveLayerId: (id: string | null) => void;
+  setSelection: (selection: SelectionRef[]) => void;
 }
 
 export type UiStateStore = UiState & {

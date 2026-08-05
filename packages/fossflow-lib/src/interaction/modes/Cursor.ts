@@ -15,7 +15,8 @@ import {
   generateId,
   CoordsUtils,
   getAnchorTile,
-  connectorPathTileToGlobal
+  connectorPathTileToGlobal,
+  expandToGroup
 } from 'src/utils';
 import { useScene } from 'src/hooks/useScene';
 
@@ -135,10 +136,12 @@ export const Cursor: ModeActions = {
     }
 
     if (item) {
+      // A grouped entity drags its whole group, so a group moves as one unit
+      // in a single history entry rather than member by member.
       uiState.actions.setMode({
         type: 'DRAG_ITEMS',
         showCursor: true,
-        items: [item],
+        items: expandToGroup(scene.currentView, item),
         isInitialMovement: true
       });
     } else {
