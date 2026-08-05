@@ -9,7 +9,8 @@ import {
   View,
   Rectangle,
   Colors,
-  Layer
+  Layer,
+  Group
 } from 'src/types';
 
 export { BASE_LAYER_ID } from 'src/schemas/views';
@@ -42,25 +43,42 @@ export const VIEW_DEFAULTS: Required<
   connectors: [],
   rectangles: [],
   textBoxes: [],
-  layers: []
+  layers: [],
+  groups: []
 };
 
-export const LAYER_DEFAULTS: Required<Omit<Layer, 'id'>> = {
+// parentId and isCollapsed are absent-means-inherit too: no parentId is a root
+// layer, no isCollapsed is expanded.
+export const LAYER_DEFAULTS: Required<
+  Omit<Layer, 'id' | 'parentId' | 'isCollapsed'>
+> = {
   name: 'Untitled layer',
   isVisible: true,
   isLocked: false
 };
 
-// layerId stays out of every DEFAULTS object: base-layer membership is
-// canonically "no layerId key" (see src/schemas/views.ts).
+export const GROUP_DEFAULTS: Required<
+  Omit<Group, 'id' | 'layerId' | 'parentId' | 'isCollapsed'>
+> = {
+  name: 'Untitled group',
+  isVisible: true,
+  isLocked: false
+};
+
+// The organization fields stay out of every entity DEFAULTS object: base-layer
+// membership is canonically "no layerId key", ungrouped is "no groupId key",
+// and an absent isVisible/isLocked means "inherit from my layer and group"
+// (see src/schemas/common.ts).
+type OrganizationField = 'layerId' | 'groupId' | 'isVisible' | 'isLocked';
+
 export const VIEW_ITEM_DEFAULTS: Required<
-  Omit<ViewItem, 'id' | 'tile' | 'layerId'>
+  Omit<ViewItem, 'id' | 'tile' | OrganizationField>
 > = {
   labelHeight: 80
 };
 
 export const CONNECTOR_DEFAULTS: Required<
-  Omit<Connector, 'id' | 'color' | 'layerId'>
+  Omit<Connector, 'id' | 'color' | OrganizationField>
 > = {
   width: 10,
   description: '',
@@ -74,7 +92,7 @@ export const CONNECTOR_DEFAULTS: Required<
 export const CONNECTOR_SEARCH_OFFSET = { x: 1, y: 1 };
 
 export const TEXTBOX_DEFAULTS: Required<
-  Omit<TextBox, 'id' | 'tile' | 'layerId'>
+  Omit<TextBox, 'id' | 'tile' | OrganizationField>
 > = {
   orientation: 'X',
   fontSize: 0.6,
@@ -85,7 +103,7 @@ export const TEXTBOX_PADDING = 0.2;
 export const TEXTBOX_FONT_WEIGHT = 'bold';
 
 export const RECTANGLE_DEFAULTS: Required<
-  Omit<Rectangle, 'id' | 'from' | 'to' | 'color' | 'layerId'>
+  Omit<Rectangle, 'id' | 'from' | 'to' | 'color' | OrganizationField>
 > = {};
 
 export const ZOOM_INCREMENT = 0.2;

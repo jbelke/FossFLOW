@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { coords, id, constrainedStrings } from './common';
+import { coords, id, constrainedStrings, organizationFields } from './common';
 
 export const connectorStyleOptions = ['SOLID', 'DOTTED', 'DASHED'] as const;
 
@@ -22,5 +22,5 @@ export const connectorSchema = z.object({
   style: z.enum(connectorStyleOptions).optional(),
   showArrow: z.boolean().optional(),
   anchors: z.array(anchorSchema),
-  layerId: id.optional()
+  ...organizationFields
 });

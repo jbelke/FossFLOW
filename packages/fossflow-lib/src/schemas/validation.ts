@@ -9,6 +9,16 @@ import type {
 import { getAllAnchors, getItemByIdOrThrow } from 'src/utils';
 import { BASE_LAYER_ID } from './views';
 
+// Anything that can carry a layerId/groupId/parentId: the four entity kinds,
+// plus groups and layers themselves once both trees nest.
+type MembershipHolder =
+  | 'ITEM'
+  | 'CONNECTOR'
+  | 'RECTANGLE'
+  | 'TEXTBOX'
+  | 'GROUP'
+  | 'LAYER';
+
 type IssueType =
   | {
       type: 'INVALID_ANCHOR_TO_VIEW_ITEM_REF';
@@ -76,10 +86,19 @@ type IssueType =
   | {
       type: 'INVALID_LAYER_REF';
       params: {
-        entityType: 'ITEM' | 'CONNECTOR' | 'RECTANGLE' | 'TEXTBOX';
+        entityType: MembershipHolder;
         entity: string;
         view: string;
         layer: string;
+      };
+    }
+  | {
+      type: 'INVALID_GROUP_REF';
+      params: {
+        entityType: MembershipHolder;
+        entity: string;
+        view: string;
+        group: string;
       };
     };
 
@@ -285,9 +304,16 @@ export const validateView = (view: View, ctx: { model: Model }): Issue[] => {
     })
   );
 
-  const checkLayerRef = (
+  // groupId must resolve to a group in this view, same as layerId.
+  const groupIds = new Set(
+    (view.groups ?? []).map((group) => {
+      return group.id;
+    })
+  );
+
+  const checkMembershipRefs = (
     entityType: 'ITEM' | 'CONNECTOR' | 'RECTANGLE' | 'TEXTBOX',
-    entity: { id: string; layerId?: string }
+    entity: { id: string; layerId?: string; groupId?: string }
   ) => {
     if (
       entity.layerId &&
@@ -305,19 +331,81 @@ export const validateView = (view: View, ctx: { model: Model }): Issue[] => {
         message: 'Item references a layer that does not exist in this view.'
       });
     }
+
+    if (entity.groupId && !groupIds.has(entity.groupId)) {
+      issues.push({
+        type: 'INVALID_GROUP_REF',
+        params: {
+          entityType,
+          entity: entity.id,
+          view: view.id,
+          group: entity.groupId
+        },
+        message: 'Item references a group that does not exist in this view.'
+      });
+    }
   };
 
   view.items.forEach((viewItem) => {
-    return checkLayerRef('ITEM', viewItem);
+    return checkMembershipRefs('ITEM', viewItem);
   });
   (view.connectors ?? []).forEach((connector) => {
-    return checkLayerRef('CONNECTOR', connector);
+    return checkMembershipRefs('CONNECTOR', connector);
   });
   (view.rectangles ?? []).forEach((rectangle) => {
-    return checkLayerRef('RECTANGLE', rectangle);
+    return checkMembershipRefs('RECTANGLE', rectangle);
   });
   (view.textBoxes ?? []).forEach((textBox) => {
-    return checkLayerRef('TEXTBOX', textBox);
+    return checkMembershipRefs('TEXTBOX', textBox);
+  });
+
+  // A group's own layerId, and both trees' parentIds, must resolve too — a
+  // dangling parent would silently orphan a whole subtree in the object tree.
+  (view.groups ?? []).forEach((group) => {
+    if (
+      group.layerId &&
+      group.layerId !== BASE_LAYER_ID &&
+      !layerIds.has(group.layerId)
+    ) {
+      issues.push({
+        type: 'INVALID_LAYER_REF',
+        params: {
+          entityType: 'GROUP',
+          entity: group.id,
+          view: view.id,
+          layer: group.layerId
+        },
+        message: 'Group references a layer that does not exist in this view.'
+      });
+    }
+
+    if (group.parentId && !groupIds.has(group.parentId)) {
+      issues.push({
+        type: 'INVALID_GROUP_REF',
+        params: {
+          entityType: 'GROUP',
+          entity: group.id,
+          view: view.id,
+          group: group.parentId
+        },
+        message: 'Group references a parent group that does not exist.'
+      });
+    }
+  });
+
+  (view.layers ?? []).forEach((layer) => {
+    if (layer.parentId && !layerIds.has(layer.parentId)) {
+      issues.push({
+        type: 'INVALID_LAYER_REF',
+        params: {
+          entityType: 'LAYER',
+          entity: layer.id,
+          view: view.id,
+          layer: layer.parentId
+        },
+        message: 'Layer references a parent layer that does not exist.'
+      });
+    }
   });
 
   return issues;

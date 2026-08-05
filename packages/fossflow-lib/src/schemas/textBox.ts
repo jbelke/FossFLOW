@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { ProjectionOrientationEnum } from 'src/types/common';
-import { id, coords, constrainedStrings } from './common';
+import {
+  id,
+  coords,
+  constrainedStrings,
+  organizationFields
+} from './common';
 
 export const textBoxSchema = z.object({
   id,
@@ -13,5 +18,5 @@ export const textBoxSchema = z.object({
       z.literal(ProjectionOrientationEnum.Y)
     ])
     .optional(),
-  layerId: id.optional()
+  ...organizationFields
 });
