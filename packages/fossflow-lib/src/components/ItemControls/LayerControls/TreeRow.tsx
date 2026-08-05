@@ -44,6 +44,8 @@ interface Props {
   isActiveLayer: boolean;
   canRename: boolean;
   onSelect: (event: React.MouseEvent) => void;
+  /** Double-click on an entity row — opens that entity's own controls. */
+  onOpenDetails: () => void;
   onToggleExpanded: () => void;
   onToggleVisible: () => void;
   onToggleLocked: () => void;
@@ -57,6 +59,7 @@ export const TreeRow = ({
   isActiveLayer,
   canRename,
   onSelect,
+  onOpenDetails,
   onToggleExpanded,
   onToggleVisible,
   onToggleLocked,
@@ -131,9 +134,15 @@ export const TreeRow = ({
         type="button"
         onClick={onSelect}
         onDoubleClick={(e: React.MouseEvent) => {
-          if (!canRename) return;
           e.stopPropagation();
-          setEditedName(row.name);
+
+          // Containers rename in place; entities have no name of their own
+          // here, so their double-click opens their editor instead.
+          if (canRename) {
+            setEditedName(row.name);
+          } else {
+            onOpenDetails();
+          }
         }}
         sx={{
           flexGrow: 1,

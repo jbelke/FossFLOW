@@ -188,18 +188,24 @@ export const LayersPanel = () => {
     setSelection(new Set([row.key]));
     setAnchorKey(row.key);
 
-    // A plain click also drives the rest of the editor: layers set where new
-    // items land, entities open their own controls panel.
+    // Clicking a layer also points new items at it. Clicking an entity does
+    // NOT open that entity's controls: this panel *is* an ItemControls panel,
+    // so setItemControls would swap the tree away the moment you touched a
+    // row. Opening an entity's editor is the double-click (onOpenDetails).
     if (row.kind === 'LAYER') {
       uiStateActions.setActiveLayerId(
         row.id === BASE_LAYER_ID ? null : row.id
       );
-    } else if (row.isEntity && row.kind !== 'CONNECTOR_ANCHOR') {
-      uiStateActions.setItemControls({
-        type: row.kind as ItemReferenceType,
-        id: row.id
-      });
     }
+  };
+
+  const onOpenDetails = (row: TreeRowData) => {
+    if (!row.isEntity || row.kind === 'CONNECTOR_ANCHOR') return;
+
+    uiStateActions.setItemControls({
+      type: row.kind as ItemReferenceType,
+      id: row.id
+    });
   };
 
   const updateEntity = (
@@ -371,6 +377,9 @@ export const LayersPanel = () => {
                     }
                     onSelect={(event) => {
                       return onSelectRow(row, event);
+                    }}
+                    onOpenDetails={() => {
+                      return onOpenDetails(row);
                     }}
                     onToggleExpanded={() => {
                       return patchRow(row, { isCollapsed: row.isExpanded });
