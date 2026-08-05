@@ -9,7 +9,8 @@ import {
   State,
   SlimMouseEvent,
   Coords,
-  ItemReferenceType
+  ItemReferenceType,
+  LayerOrderingAction
 } from 'src/types';
 import { DialogTypeEnum } from 'src/types/ui';
 import {
@@ -23,6 +24,8 @@ import { useResizeObserver } from 'src/hooks/useResizeObserver';
 import { useScene } from 'src/hooks/useScene';
 import { useHistory } from 'src/hooks/useHistory';
 import { useNodeActions } from 'src/hooks/useNodeActions';
+import { useEntityActions } from 'src/hooks/useEntityActions';
+import { useDiagramUtils } from 'src/hooks/useDiagramUtils';
 import { HOTKEY_PROFILES } from 'src/config/hotkeys';
 import { TEXTBOX_DEFAULTS } from 'src/config';
 import { Cursor } from './modes/Cursor';
@@ -46,12 +49,22 @@ const modes: { [k in string]: ModeActions } = {
   TEXTBOX: TextBox
 };
 
-// Arrow keys move a selected node along the two isometric grid axes.
+// Arrow keys move the selection along the two isometric grid axes.
 const NUDGE_DELTAS: { [key: string]: Coords } = {
   ArrowUp: { x: 1, y: 0 },
   ArrowDown: { x: -1, y: 0 },
   ArrowLeft: { x: 0, y: 1 },
   ArrowRight: { x: 0, y: -1 }
+};
+
+/** Tiles per Shift+Arrow. */
+const LARGE_NUDGE = 10;
+
+const Z_ORDER_KEYS: {
+  [key: string]: { step: LayerOrderingAction; extreme: LayerOrderingAction };
+} = {
+  ']': { step: 'BRING_FORWARD', extreme: 'BRING_TO_FRONT' },
+  '[': { step: 'SEND_BACKWARD', extreme: 'SEND_TO_BACK' }
 };
 
 const getModeFunction = (mode: ModeActions, e: SlimMouseEvent) => {
@@ -82,8 +95,16 @@ export const useInteractionManager = () => {
   const scene = useScene();
   const { size: rendererSize } = useResizeObserver(rendererEl);
   const { undo, redo, canUndo, canRedo } = useHistory();
-  const { duplicateNode, deleteNode, nudgeNode, copyNode, cutNode, pasteNode } =
-    useNodeActions();
+  const { duplicateNode, copyNode, cutNode, pasteNode } = useNodeActions();
+  const {
+    getTargets,
+    deleteEntities,
+    nudgeEntities,
+    setFlags,
+    allHaveFlag,
+    allEntityRefs
+  } = useEntityActions();
+  const { fitToView } = useDiagramUtils();
   const { createTextBox } = scene;
   const {
     handleMouseDown: handlePanMouseDown,
@@ -148,6 +169,7 @@ export const useInteractionManager = () => {
         uiState.actions.setRenamingItemId(null);
         uiState.actions.setItemControls(null);
         uiState.actions.setContextMenu(null);
+        uiState.actions.setSelection([]);
         uiState.actions.setMode({
           type: 'CURSOR',
           showCursor: true,
@@ -216,6 +238,82 @@ export const useInteractionManager = () => {
         return;
       }
 
+      // Select everything in the view.
+      if (isCtrlOrCmd && key === 'a') {
+        e.preventDefault();
+        uiState.actions.setSelection(
+          allEntityRefs().map((ref) => {
+            return { kind: ref.type, id: ref.id };
+          })
+        );
+        return;
+      }
+
+      // Everything below acts on the resolved target set — the shared
+      // multi-selection when there is one, else the single open entity. This
+      // is what makes Delete and the arrows work on rectangles, text boxes
+      // and multi-selections rather than only on nodes.
+      const targets = getTargets();
+
+      if (canEdit && targets.length > 0) {
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          e.preventDefault();
+          deleteEntities(targets);
+          uiState.actions.setSelection([]);
+          uiState.actions.setItemControls(null);
+          return;
+        }
+
+        const nudge = NUDGE_DELTAS[e.key];
+
+        if (nudge && !isCtrlOrCmd) {
+          e.preventDefault();
+          // Shift is the coarse nudge, the same convention as every other
+          // canvas tool.
+          const step = e.shiftKey ? LARGE_NUDGE : 1;
+
+          nudgeEntities(targets, {
+            x: nudge.x * step,
+            y: nudge.y * step
+          });
+          return;
+        }
+
+        // Lock and hide mirror the object tree's per-row toggles, applied to
+        // the whole selection at once.
+        if (isCtrlOrCmd && e.shiftKey && key === 'l') {
+          e.preventDefault();
+          setFlags({ isLocked: !allHaveFlag('isLocked', true) });
+          return;
+        }
+
+        if (isCtrlOrCmd && e.shiftKey && key === 'h') {
+          e.preventDefault();
+          setFlags({ isVisible: allHaveFlag('isVisible', false) });
+          return;
+        }
+
+        // Z-order, for the one kind that has a stacking order to change.
+        const zOrder = Z_ORDER_KEYS[key];
+
+        if (isCtrlOrCmd && zOrder) {
+          const rectangles = targets.filter((ref) => {
+            return ref.type === 'RECTANGLE';
+          });
+
+          if (rectangles.length > 0) {
+            e.preventDefault();
+            rectangles.forEach((ref) => {
+              scene.changeLayerOrder(
+                e.shiftKey ? zOrder.extreme : zOrder.step,
+                ref
+              );
+            });
+            return;
+          }
+        }
+      }
+
       if (selectedNodeId) {
         // Copying mutates nothing, so it stays available in read-only modes.
         if (isCtrlOrCmd && key === 'c') {
@@ -239,25 +337,30 @@ export const useInteractionManager = () => {
           return;
         }
 
-        if (canEdit && (e.key === 'Delete' || e.key === 'Backspace')) {
-          e.preventDefault();
-          deleteNode(selectedNodeId);
-          return;
-        }
-
         if (canEdit && (e.key === 'F2' || e.key === 'Enter')) {
           e.preventDefault();
           uiState.actions.setRenamingItemId(selectedNodeId);
           return;
         }
+      }
 
-        const nudge = NUDGE_DELTAS[e.key];
+      // Zoom, on the usual bindings. '=' is the unshifted '+' key.
+      if (isCtrlOrCmd && (key === '=' || key === '+')) {
+        e.preventDefault();
+        uiState.actions.incrementZoom();
+        return;
+      }
 
-        if (canEdit && nudge && !isCtrlOrCmd) {
-          e.preventDefault();
-          nudgeNode(selectedNodeId, nudge);
-          return;
-        }
+      if (isCtrlOrCmd && key === '-') {
+        e.preventDefault();
+        uiState.actions.decrementZoom();
+        return;
+      }
+
+      if (isCtrlOrCmd && key === '0') {
+        e.preventDefault();
+        fitToView();
+        return;
       }
 
       // Everything below is an unmodified single-key tool shortcut.
@@ -343,11 +446,17 @@ export const useInteractionManager = () => {
     uiStateApi,
     createTextBox,
     duplicateNode,
-    deleteNode,
-    nudgeNode,
     copyNode,
     cutNode,
-    pasteNode
+    pasteNode,
+    scene,
+    fitToView,
+    getTargets,
+    deleteEntities,
+    nudgeEntities,
+    setFlags,
+    allHaveFlag,
+    allEntityRefs
   ]);
 
   const onMouseEvent = (e: SlimMouseEvent) => {
