@@ -10,6 +10,7 @@ import * as connectorReducers from './connector';
 import * as textBoxReducers from './textBox';
 import * as rectangleReducers from './rectangle';
 import * as layerOrderingReducers from './layerOrdering';
+import * as groupReducers from './group';
 import * as layerReducers from './layer';
 
 export const updateViewTimestamp = (ctx: ViewReducerContext): State => {
@@ -153,6 +154,24 @@ export const view = ({ action, payload, ctx }: ViewReducerParams) => {
       break;
     case 'SET_ITEMS_LAYER':
       newState = layerReducers.setItemsLayer(payload, ctx);
+      break;
+    case 'SET_LAYER_PARENT':
+      newState = layerReducers.setLayerParent(payload, ctx);
+      break;
+    case 'CREATE_GROUP':
+      newState = groupReducers.createGroup(payload, ctx);
+      break;
+    case 'UPDATE_GROUP':
+      newState = groupReducers.updateGroup(payload, ctx);
+      break;
+    case 'DELETE_GROUP':
+      newState = groupReducers.deleteGroup(payload, ctx);
+      break;
+    case 'SET_GROUP_PARENT':
+      newState = groupReducers.setGroupParent(payload, ctx);
+      break;
+    case 'SET_ITEMS_GROUP':
+      newState = groupReducers.setItemsGroup(payload, ctx);
       break;
     default:
       throw new Error('Invalid action.');

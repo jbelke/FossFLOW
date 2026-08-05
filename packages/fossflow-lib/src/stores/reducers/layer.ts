@@ -1,6 +1,6 @@
 import { produce } from 'immer';
 import { Layer, ItemReference } from 'src/types';
-import { getItemByIdOrThrow } from 'src/utils';
+import { getItemByIdOrThrow, wouldCreateCycle } from 'src/utils';
 import { BASE_LAYER_ID } from 'src/schemas/views';
 import { LAYER_DEFAULTS } from 'src/config';
 import { State, ViewReducerContext } from './types';
@@ -58,19 +58,82 @@ export const deleteLayer = (id: string, ctx: ViewReducerContext): State => {
       throw new Error(`Layer "${id}" not found in view.`);
     }
 
+    // Everything the layer held moves up one level: to the parent folder, or
+    // to the base layer when the deleted layer was top-level. Doing it inside
+    // the same produce means no dangling layerId or parentId ever exists
+    // (updateViewItem re-validates the view and throws on dangling refs).
+    // Entities are never deleted along with a layer.
+    const { parentId } = layers[index];
+
     layers.splice(index, 1);
 
-    // Reassign the layer's entities to the base layer in the same produce, so
-    // no dangling layerId ever exists (updateViewItem re-validates the view
-    // and throws on dangling refs). Entities are never deleted with a layer.
-    const strip = (entity: { layerId?: string }) => {
-      if (entity.layerId === id) delete entity.layerId;
+    const reassign = (entity: { layerId?: string }) => {
+      if (entity.layerId !== id) return;
+
+      if (parentId === undefined) {
+        delete entity.layerId;
+      } else {
+        const target = entity;
+        target.layerId = parentId;
+      }
     };
 
-    view.items.forEach(strip);
-    (view.connectors ?? []).forEach(strip);
-    (view.rectangles ?? []).forEach(strip);
-    (view.textBoxes ?? []).forEach(strip);
+    layers.forEach((layer) => {
+      if (layer.parentId !== id) return;
+
+      if (parentId === undefined) {
+        delete layer.parentId;
+      } else {
+        const target = layer;
+        target.parentId = parentId;
+      }
+    });
+
+    view.items.forEach(reassign);
+    (view.connectors ?? []).forEach(reassign);
+    (view.rectangles ?? []).forEach(reassign);
+    (view.textBoxes ?? []).forEach(reassign);
+    (view.groups ?? []).forEach(reassign);
+  });
+};
+
+export const setLayerParent = (
+  { id, parentId }: { id: string; parentId: string | null },
+  ctx: ViewReducerContext
+): State => {
+  if (id === BASE_LAYER_ID) {
+    throw new Error('The base layer cannot be nested.');
+  }
+
+  return produce(ctx.state, (draft) => {
+    const view = getItemByIdOrThrow(draft.model.views, ctx.viewId).value;
+    const layers = view.layers ?? [];
+    const layer = layers.find((candidate) => {
+      return candidate.id === id;
+    });
+
+    if (!layer) throw new Error(`Layer "${id}" not found in view.`);
+
+    const target =
+      parentId === null || parentId === BASE_LAYER_ID ? undefined : parentId;
+
+    if (target !== undefined) {
+      const exists = layers.some((candidate) => {
+        return candidate.id === target;
+      });
+
+      if (!exists) throw new Error(`Layer "${target}" not found in view.`);
+
+      if (wouldCreateCycle(layers, id, target)) {
+        throw new Error('A layer cannot be moved inside its own subtree.');
+      }
+    }
+
+    if (target === undefined) {
+      delete layer.parentId;
+    } else {
+      layer.parentId = target;
+    }
   });
 };
 

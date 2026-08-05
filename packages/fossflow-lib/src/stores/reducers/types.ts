@@ -6,6 +6,7 @@ import type * as textBoxReducers from './textBox';
 import type * as rectangleReducers from './rectangle';
 import type * as layerOrderingReducers from './layerOrdering';
 import type * as layerReducers from './layer';
+import type * as groupReducers from './group';
 
 export interface State {
   model: Model;
@@ -105,6 +106,30 @@ type ViewReducerAction =
   | {
       action: 'SET_ITEMS_LAYER';
       payload: Parameters<typeof layerReducers.setItemsLayer>[0];
+    }
+  | {
+      action: 'SET_LAYER_PARENT';
+      payload: Parameters<typeof layerReducers.setLayerParent>[0];
+    }
+  | {
+      action: 'CREATE_GROUP';
+      payload: Parameters<typeof groupReducers.createGroup>[0];
+    }
+  | {
+      action: 'UPDATE_GROUP';
+      payload: Parameters<typeof groupReducers.updateGroup>[0];
+    }
+  | {
+      action: 'DELETE_GROUP';
+      payload: Parameters<typeof groupReducers.deleteGroup>[0];
+    }
+  | {
+      action: 'SET_GROUP_PARENT';
+      payload: Parameters<typeof groupReducers.setGroupParent>[0];
+    }
+  | {
+      action: 'SET_ITEMS_GROUP';
+      payload: Parameters<typeof groupReducers.setItemsGroup>[0];
     };
 
 export type ViewReducerParams = ViewReducerAction & { ctx: ViewReducerContext };

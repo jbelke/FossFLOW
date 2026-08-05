@@ -7,6 +7,7 @@ import {
   Rectangle,
   ItemReference,
   Layer,
+  Group,
   LayerOrderingAction,
   SceneConnector,
   SceneTextBox
@@ -211,6 +212,10 @@ export const useScene = () => {
   const layers = useMemo(() => {
     return currentView.layers ?? [];
   }, [currentView.layers]);
+
+  const groups = useMemo(() => {
+    return currentView.groups ?? [];
+  }, [currentView.groups]);
 
   const visibility = useMemo(() => {
     return computeVisibility(currentView);
@@ -725,6 +730,96 @@ export const useScene = () => {
     ]
   );
 
+  const setLayerParent = useCallback(
+    (id: string, parentId: string | null) => {
+      if (!currentViewId) return;
+
+      saveToHistoryBeforeChange();
+      const newState = reducers.view({
+        action: 'SET_LAYER_PARENT',
+        payload: { id, parentId },
+        ctx: { viewId: currentViewId, state: getState() }
+      });
+      setState(newState);
+    },
+    [getState, setState, currentViewId, saveToHistoryBeforeChange]
+  );
+
+  const createGroup = useCallback(
+    (newGroup: Group, itemRefs: ItemReference[]) => {
+      if (!currentViewId) return;
+
+      saveToHistoryBeforeChange();
+      const newState = reducers.view({
+        action: 'CREATE_GROUP',
+        payload: { group: newGroup, items: itemRefs },
+        ctx: { viewId: currentViewId, state: getState() }
+      });
+      setState(newState);
+    },
+    [getState, setState, currentViewId, saveToHistoryBeforeChange]
+  );
+
+  const updateGroup = useCallback(
+    (id: string, updates: Partial<Group>) => {
+      if (!currentViewId) return;
+
+      saveToHistoryBeforeChange();
+      const newState = reducers.view({
+        action: 'UPDATE_GROUP',
+        payload: { id, ...updates },
+        ctx: { viewId: currentViewId, state: getState() }
+      });
+      setState(newState);
+    },
+    [getState, setState, currentViewId, saveToHistoryBeforeChange]
+  );
+
+  const deleteGroup = useCallback(
+    (id: string) => {
+      if (!currentViewId) return;
+
+      saveToHistoryBeforeChange();
+      const newState = reducers.view({
+        action: 'DELETE_GROUP',
+        payload: id,
+        ctx: { viewId: currentViewId, state: getState() }
+      });
+      setState(newState);
+    },
+    [getState, setState, currentViewId, saveToHistoryBeforeChange]
+  );
+
+  const setGroupParent = useCallback(
+    (id: string, parentId: string | null) => {
+      if (!currentViewId) return;
+
+      saveToHistoryBeforeChange();
+      const newState = reducers.view({
+        action: 'SET_GROUP_PARENT',
+        payload: { id, parentId },
+        ctx: { viewId: currentViewId, state: getState() }
+      });
+      setState(newState);
+    },
+    [getState, setState, currentViewId, saveToHistoryBeforeChange]
+  );
+
+  const setItemsGroup = useCallback(
+    (itemRefs: ItemReference[], groupId: string | null) => {
+      if (!currentViewId) return;
+
+      saveToHistoryBeforeChange();
+      const newState = reducers.view({
+        action: 'SET_ITEMS_GROUP',
+        payload: { items: itemRefs, groupId },
+        ctx: { viewId: currentViewId, state: getState() }
+      });
+      setState(newState);
+    },
+    [getState, setState, currentViewId, saveToHistoryBeforeChange]
+  );
+
   const transaction = useCallback(
     (operations: () => void) => {
       // Prevent nested transactions
@@ -787,6 +882,7 @@ export const useScene = () => {
     rectangles,
     textBoxes,
     layers,
+    groups,
     visibility,
     visibleItems,
     visibleConnectors,
@@ -813,6 +909,12 @@ export const useScene = () => {
     updateLayer,
     deleteLayer,
     setItemsLayer,
+    setLayerParent,
+    createGroup,
+    updateGroup,
+    deleteGroup,
+    setGroupParent,
+    setItemsGroup,
     transaction,
     placeIcon
   };

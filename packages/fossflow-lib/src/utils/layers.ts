@@ -101,6 +101,66 @@ const resolveInherited = <T extends TreeNode>(
   return result;
 };
 
+/**
+ * True when reparenting `id` under `parentId` would put the node inside its
+ * own subtree. Walking up from the proposed parent must never reach the node
+ * being moved. A pre-existing loop higher up the chain is not this move's
+ * fault, so it terminates the walk and reports no new cycle.
+ */
+export const wouldCreateCycle = (
+  nodes: TreeNode[],
+  id: string,
+  parentId: string | undefined
+): boolean => {
+  const byId = new Map<string, TreeNode>();
+
+  nodes.forEach((node) => {
+    byId.set(node.id, node);
+  });
+
+  const seen = new Set<string>();
+  let cursor = parentId;
+
+  while (cursor !== undefined) {
+    if (cursor === id) return true;
+    if (seen.has(cursor)) return false;
+
+    seen.add(cursor);
+    cursor = byId.get(cursor)?.parentId;
+  }
+
+  return false;
+};
+
+/**
+ * Every node in `rootId`'s subtree, including the root. Grown to a fixed point
+ * rather than by recursion so a cyclic parentId cannot spin forever.
+ */
+export const collectSubtree = (
+  nodes: TreeNode[],
+  rootId: string
+): Set<string> => {
+  const subtree = new Set<string>([rootId]);
+  let grew = true;
+
+  while (grew) {
+    grew = false;
+
+    nodes.forEach((node) => {
+      if (
+        node.parentId !== undefined &&
+        subtree.has(node.parentId) &&
+        !subtree.has(node.id)
+      ) {
+        subtree.add(node.id);
+        grew = true;
+      }
+    });
+  }
+
+  return subtree;
+};
+
 /** An entity is hidden by its own flag, by its layer, or by its group. */
 export const isEntityHidden = (
   entity: OrganizedEntity,
