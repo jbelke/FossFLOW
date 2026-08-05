@@ -33,6 +33,50 @@ export const base64ToBlob = (
   return blob;
 };
 
+/**
+ * Decode the text body of a data URL the lenient way browsers do.
+ *
+ * `dom-to-image` builds its SVG data URL by escaping only `#` and newlines, so
+ * the body still contains bare `%` characters from CSS like `width: 100%`.
+ * Strict `decodeURIComponent` throws "URI malformed" on those. Decoding each
+ * run of valid escapes instead keeps multi-byte UTF-8 sequences intact while
+ * leaving a lone `%` untouched.
+ */
+const decodeDataUrlText = (payload: string) => {
+  return payload.replace(/(?:%[0-9A-Fa-f]{2})+/g, (escapeRun) => {
+    try {
+      return decodeURIComponent(escapeRun);
+    } catch (err) {
+      return escapeRun;
+    }
+  });
+};
+
+/**
+ * Turn any data URL into a Blob. `dom-to-image` returns base64 for raster
+ * formats but escaped text for SVG, so both encodings have to work.
+ */
+export const dataUrlToBlob = (dataUrl: string) => {
+  const separator = dataUrl.indexOf(',');
+
+  if (!dataUrl.startsWith('data:') || separator === -1) {
+    throw new Error('Not a data URL');
+  }
+
+  const header = dataUrl.slice('data:'.length, separator);
+  const payload = dataUrl.slice(separator + 1);
+  const isBase64 = header.endsWith(';base64');
+  const contentType =
+    (isBase64 ? header.slice(0, -';base64'.length) : header) ||
+    'application/octet-stream';
+
+  if (isBase64) {
+    return base64ToBlob(payload, contentType);
+  }
+
+  return new Blob([decodeDataUrlText(payload)], { type: contentType });
+};
+
 export const downloadFile = (data: Blob, filename: string) => {
   FileSaver.saveAs(data, filename);
 };
@@ -175,11 +219,62 @@ export const exportAsCompactJSON = (model: Model) => {
   downloadFile(data, generateGenericFilename('compact.json'));
 };
 
-export const exportAsImage = async (el: HTMLDivElement, size?: Size) => {
-  const imageData = await domtoimage.toPng(el, {
+export type ExportImageFormat = 'png' | 'jpeg' | 'svg' | 'pdf';
+
+/**
+ * PDF has no capture path of its own — it wraps a PNG raster (see
+ * `exportAsPdf`), so this is the format actually handed to `dom-to-image`.
+ */
+export type CaptureFormat = Exclude<ExportImageFormat, 'pdf'>;
+
+export const captureFormatFor = (format: ExportImageFormat): CaptureFormat => {
+  return format === 'pdf' ? 'png' : format;
+};
+
+export const FILE_EXTENSIONS: Record<ExportImageFormat, string> = {
+  png: 'png',
+  jpeg: 'jpg',
+  svg: 'svg',
+  pdf: 'pdf'
+};
+
+export interface ExportImageOptions extends Partial<Size> {
+  format?: CaptureFormat;
+  /** Flattened behind the diagram; only applied to JPEG, which has no alpha. */
+  backgroundColor?: string;
+  jpegQuality?: number;
+}
+
+export const exportAsImage = async (
+  el: HTMLDivElement,
+  options: ExportImageOptions = {}
+) => {
+  const {
+    format = 'png',
+    backgroundColor,
+    jpegQuality = 0.92,
+    ...size
+  } = options;
+
+  const domToImageOptions = {
     ...size,
     cacheBust: true
-  });
+  };
 
-  return imageData;
+  switch (format) {
+    case 'jpeg':
+      return domtoimage.toJpeg(el, {
+        ...domToImageOptions,
+        bgcolor: backgroundColor,
+        quality: jpegQuality
+      });
+    // Note this is not a native-vector export: `dom-to-image` wraps the cloned
+    // DOM in a <foreignObject>, so it scales cleanly in browsers but does not
+    // open as editable shapes in Inkscape or Illustrator. A true vector export
+    // would need the renderer to stop drawing nodes as HTML.
+    case 'svg':
+      return domtoimage.toSvg(el, domToImageOptions);
+    default:
+      return domtoimage.toPng(el, domToImageOptions);
+  }
 };
